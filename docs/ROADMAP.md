@@ -105,7 +105,7 @@ Rama: `phase-4/api`
 Rama: `phase-5/agent`
 
 - [x] **5.1** Interfaz `ERPAdapter` y modelo canónico.
-- [ ] **5.2** `MockAdapter` con datos y mutaciones deterministas.
+- [x] **5.2** `MockAdapter` con datos y mutaciones deterministas.
 - [ ] **5.3** `SaintAdapter` contra el sandbox, usando el mapeo configurable.
 - [ ] **5.4** Almacén SQLite de hashes y delta sync SHA256 de `sku + precio + stock + nombre`.
 - [ ] **5.5** Reconciliación completa periódica para detectar productos eliminados o desactivados.
