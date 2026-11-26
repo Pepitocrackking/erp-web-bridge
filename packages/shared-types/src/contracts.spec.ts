@@ -82,6 +82,13 @@ describe("orderSchema", () => {
     expect(orderSchema.parse(synced)).toEqual(synced);
   });
 
+  it.each(["pending_sync", "synced_to_erp", "approved", "rejected", "cancelled", "error"])(
+    "acepta el estado %s (los mismos que el CHECK de web_orders.status)",
+    (status) => {
+      expect(orderSchema.safeParse({ ...order, status }).success).toBe(true);
+    },
+  );
+
   it.each([
     ["sin items", { items: [] }],
     ["cantidad cero", { items: [{ sku: "P00001", quantity: 0, unit_price_usd: 1 }] }],
