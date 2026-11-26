@@ -70,20 +70,86 @@ export type Order = z.infer<typeof orderSchema>;
 const batchBase = {
   batch_id: z.uuid(),
   sent_at: z.iso.datetime(),
-  /** true cuando el lote es el inventario completo: la API desactiva lo que no venga. */
+  /** true cuando el lote forma parte del inventario completo: la API desactiva lo que no venga. */
   full_reconciliation: z.boolean(),
+  /**
+   * Una reconciliacion completa puede ocupar varios lotes (SYNC_BATCH_MAX_RECORDS cada uno).
+   * Todos comparten el mismo reconciliation_id; el ultimo lleva final_batch=true y total_records
+   * (cuantos registros tiene el inventario completo). Solo entonces la API desactiva los que
+   * no llegaron, y solo si lo recibido cuadra con total_records: asi un lote perdido no
+   * desactiva medio catalogo. Requeridos si full_reconciliation=true; prohibidos si es false.
+   */
+  reconciliation_id: z.uuid().optional(),
+  final_batch: z.boolean().optional(),
+  total_records: z.number().int().nonnegative().optional(),
 };
 
-export const syncBatchSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
+function checkReconciliation(
+  batch: {
+    full_reconciliation: boolean;
+    reconciliation_id?: string | undefined;
+    final_batch?: boolean | undefined;
+    total_records?: number | undefined;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  const issue = (path: string, message: string) =>
+    ctx.addIssue({ code: "custom", path: [path], message });
+  if (!batch.full_reconciliation) {
+    if (batch.reconciliation_id !== undefined)
+      issue("reconciliation_id", "solo en reconciliacion completa");
+    if (batch.final_batch !== undefined) issue("final_batch", "solo en reconciliacion completa");
+    if (batch.total_records !== undefined)
+      issue("total_records", "solo en reconciliacion completa");
+    return;
+  }
+  if (batch.reconciliation_id === undefined)
+    issue("reconciliation_id", "requerido en reconciliacion completa");
+  if (batch.final_batch === undefined) issue("final_batch", "requerido en reconciliacion completa");
+  if (batch.final_batch === true && batch.total_records === undefined) {
+    issue("total_records", "requerido en el ultimo lote");
+  }
+  if (batch.final_batch === false && batch.total_records !== undefined) {
+    issue("total_records", "solo en el ultimo lote");
+  }
+}
+
+export const productSyncBatchSchema = z
+  .strictObject({
     ...batchBase,
     kind: z.literal("products"),
     records: z.array(productRecordSchema).max(SYNC_BATCH_MAX_RECORDS),
-  }),
-  z.strictObject({
+  })
+  .superRefine(checkReconciliation);
+export type ProductSyncBatch = z.infer<typeof productSyncBatchSchema>;
+
+export const customerSyncBatchSchema = z
+  .strictObject({
     ...batchBase,
     kind: z.literal("customers"),
     records: z.array(customerSchema).max(SYNC_BATCH_MAX_RECORDS),
-  }),
+  })
+  .superRefine(checkReconciliation);
+export type CustomerSyncBatch = z.infer<typeof customerSyncBatchSchema>;
+
+export const syncBatchSchema = z.discriminatedUnion("kind", [
+  productSyncBatchSchema,
+  customerSyncBatchSchema,
 ]);
 export type SyncBatch = z.infer<typeof syncBatchSchema>;
+
+/**
+ * Respuesta de POST /v1/sync/*. `duplicate` es true si el batch_id ya se habia procesado con
+ * exito (reenvio del agente): no se repite el trabajo y los conteos desglosados no estan disponibles.
+ */
+export const syncResultSchema = z.strictObject({
+  batch_id: z.uuid(),
+  duplicate: z.boolean(),
+  received: z.number().int().nonnegative(),
+  inserted: z.number().int().nonnegative().nullable(),
+  updated: z.number().int().nonnegative().nullable(),
+  unchanged: z.number().int().nonnegative().nullable(),
+  /** Registros desactivados por una reconciliacion completa (solo en su ultimo lote). */
+  deactivated: z.number().int().nonnegative().nullable(),
+});
+export type SyncResult = z.infer<typeof syncResultSchema>;

@@ -3,6 +3,7 @@ import {
   orderSchema,
   productSchema,
   syncBatchSchema,
+  syncResultSchema,
   SYNC_BATCH_MAX_RECORDS,
 } from "./index";
 
@@ -102,6 +103,13 @@ describe("orderSchema", () => {
 });
 
 describe("syncBatchSchema", () => {
+  const RECONCILIATION_ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+  const finalReconciliation = (total: number) => ({
+    full_reconciliation: true,
+    reconciliation_id: RECONCILIATION_ID,
+    final_batch: true,
+    total_records: total,
+  });
   const base = {
     batch_id: "6f1c2f0e-8d3a-4b7e-9c55-1a2b3c4d5e6f",
     sent_at: "2026-11-26T15:00:00.000Z",
@@ -118,9 +126,68 @@ describe("syncBatchSchema", () => {
     expect(syncBatchSchema.parse(batch)).toEqual(batch);
   });
 
-  it("acepta un lote vacio (reconciliacion completa sin cambios)", () => {
-    const batch = { ...base, kind: "products", full_reconciliation: true, records: [] };
+  it("acepta un lote vacio (reconciliacion completa de un inventario vacio)", () => {
+    const batch = { ...base, kind: "products", ...finalReconciliation(0), records: [] };
     expect(syncBatchSchema.safeParse(batch).success).toBe(true);
+  });
+
+  describe("reconciliacion completa en varios lotes", () => {
+    it("acepta un lote intermedio: reconciliation_id y final_batch=false, sin total_records", () => {
+      const batch = {
+        ...base,
+        kind: "products",
+        full_reconciliation: true,
+        reconciliation_id: RECONCILIATION_ID,
+        final_batch: false,
+        records: [],
+      };
+      expect(syncBatchSchema.safeParse(batch).success).toBe(true);
+    });
+
+    it("acepta el ultimo lote con total_records", () => {
+      const batch = { ...base, kind: "customers", ...finalReconciliation(5000), records: [] };
+      expect(syncBatchSchema.safeParse(batch).success).toBe(true);
+    });
+
+    it.each<[string, Record<string, unknown>]>([
+      ["falta reconciliation_id", { reconciliation_id: undefined }],
+      ["falta final_batch", { final_batch: undefined }],
+      ["el ultimo lote no trae total_records", { total_records: undefined }],
+      ["reconciliation_id no es UUID", { reconciliation_id: "abc" }],
+      ["total_records negativo", { total_records: -1 }],
+      ["total_records no entero", { total_records: 1.5 }],
+    ])("rechaza si %s", (_label, patch) => {
+      const batch = {
+        ...base,
+        kind: "products",
+        ...finalReconciliation(10),
+        ...patch,
+        records: [],
+      };
+      expect(syncBatchSchema.safeParse(batch).success).toBe(false);
+    });
+
+    it("rechaza un lote intermedio con total_records", () => {
+      const batch = {
+        ...base,
+        kind: "products",
+        ...finalReconciliation(10),
+        final_batch: false,
+        records: [],
+      };
+      expect(syncBatchSchema.safeParse(batch).success).toBe(false);
+    });
+
+    it("rechaza campos de reconciliacion cuando full_reconciliation es false", () => {
+      for (const extra of [
+        { reconciliation_id: RECONCILIATION_ID },
+        { final_batch: true },
+        { total_records: 3 },
+      ]) {
+        const batch = { ...base, kind: "products", ...extra, records: [] };
+        expect(syncBatchSchema.safeParse(batch).success).toBe(false);
+      }
+    });
   });
 
   it("rechaza un lote de productos con un registro de cliente", () => {
@@ -149,5 +216,28 @@ describe("syncBatchSchema", () => {
 
   it("rechaza un tipo de lote desconocido", () => {
     expect(syncBatchSchema.safeParse({ ...base, kind: "orders", records: [] }).success).toBe(false);
+  });
+});
+
+describe("syncResultSchema", () => {
+  const result = {
+    batch_id: "6f1c2f0e-8d3a-4b7e-9c55-1a2b3c4d5e6f",
+    duplicate: false,
+    received: 3,
+    inserted: 1,
+    updated: 1,
+    unchanged: 1,
+    deactivated: null,
+  };
+
+  it("acepta un resultado normal y uno de reenvio sin desglose", () => {
+    expect(syncResultSchema.safeParse(result).success).toBe(true);
+    const dup = { ...result, duplicate: true, inserted: null, updated: null, unchanged: null };
+    expect(syncResultSchema.safeParse(dup).success).toBe(true);
+  });
+
+  it("rechaza conteos negativos o campos de mas", () => {
+    expect(syncResultSchema.safeParse({ ...result, inserted: -1 }).success).toBe(false);
+    expect(syncResultSchema.safeParse({ ...result, extra: 1 }).success).toBe(false);
   });
 });
