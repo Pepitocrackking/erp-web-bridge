@@ -53,3 +53,7 @@ Confirmación idempotente de pedidos:
 - **JWT en producción:** hoy HS256 con el secreto local; en producción Supabase firma con claves asimétricas y habrá que pasar a JWKS.
 - **Fuera de alcance (backlog):** validar stock; clave de idempotencia al crear pedidos (hoy un reintento crea otro, aunque el crédito lo limita); endpoint para que el agente marque un pedido como `error`/`rejected`/`approved`; pedidos creados por el personal a nombre de un cliente.
 - **Versiones fijadas por compatibilidad con CommonJS/Nest 11:** `@nestjs/swagger` 11.x (la 12 exige Nest 12), `@apidevtools/swagger-parser` 10 (la 13 es solo ESM y rompe jest), `jose` descartado por la misma razón.
+
+## Resultado del CI (PR #5)
+
+Run `45883528253` (commit `614a5a7`): **Go** y **TypeScript** en verde (2 min 38 s el segundo). El paso nuevo `supabase start -x ...` levantó la base y GoTrue en el runner ("Started supabase local development setup") y, con ella, el CI ejecutó `pnpm test:db` (30 de 30) y `pnpm test` (API 156 de 156 en 11 suites, shared-types 90, web 1). La ingesta de 5.000 productos midió en el runner: `alta 317 ms, reenvío sin cambios 207 ms`. Es decir, las pruebas de integración contra Postgres real corren en CI y no solo en local.
