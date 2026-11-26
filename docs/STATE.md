@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 5, Agente Go
 - **Rama:** `phase-5/agent` (creada desde `main` tras el merge del PR #5; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 5. La Fase 4 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 5.1
+- **Última tarea completada:** 5.1 (paquete `internal/erp`: `Product`, `ProductRecord`, `Customer`, interfaz `Adapter` con `Type/Products/Customers`, constantes `TypeSaint`/`TypeMock`; pruebas de JSON snake_case contra el contrato).
+- **Estado de la fase:** en curso. Siguiente tarea: 5.2 (`MockAdapter`, esfuerzo medio)
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.

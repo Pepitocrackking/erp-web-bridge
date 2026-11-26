@@ -104,7 +104,7 @@ Rama: `phase-4/api`
 ## Fase 5: Agente Go
 Rama: `phase-5/agent`
 
-- [ ] **5.1** Interfaz `ERPAdapter` y modelo canónico.
+- [x] **5.1** Interfaz `ERPAdapter` y modelo canónico.
 - [ ] **5.2** `MockAdapter` con datos y mutaciones deterministas.
 - [ ] **5.3** `SaintAdapter` contra el sandbox, usando el mapeo configurable.
 - [ ] **5.4** Almacén SQLite de hashes y delta sync SHA256 de `sku + precio + stock + nombre`.
