@@ -3,9 +3,10 @@
 Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo lee `retomar`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
 
 ## Posición
-- **Fase actual:** 5, Agente Go: **todas las tareas (5.1 a 5.7) y el Gate 5 completos**; en cierre (push, PR y merge por `phase-gate`).
-- **Rama:** `phase-5/agent`
-- **Siguiente:** Fase 6 (Web), rama `phase-6/web`, tarea 6.1.
+- **Fase actual:** 6, Web (catálogo, carrito y panel)
+- **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
+- **Última tarea completada:** ninguna de la Fase 6. La Fase 5 está completa y fusionada.
+- **Estado de la fase:** por empezar. Siguiente tarea: 6.1
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -23,14 +24,37 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - **El CI ahora levanta Supabase local** (`pnpm exec supabase start -x realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor`: solo base de datos y GoTrue) antes de `pnpm test:db` y `pnpm test`.
   - Migraciones nuevas: `..0300_sync_reconciliation.sql`, `..0400_agent_heartbeat.sql`, `..0500_orders.sql`.
   - Backlog que quedó fuera: validar stock; clave de idempotencia al CREAR pedidos; endpoint para que el agente marque un pedido como `error`/`rejected`/`approved`; pedidos hechos por el personal a nombre de un cliente; JWKS en producción.
-- **Fase 5** (Gate 5 verificado el 2026-11-26): agente Go. Evidencia en `docs/evidence/phase-5.md`.
+- **Fase 5** (PR #6, fusionado el 2026-11-26, CI en verde): agente Go. Evidencia en `docs/evidence/phase-5.md`.
   - Módulo `packages/erp-agent` (un `.exe` de ~18 MB, `CGO_ENABLED=0`). Paquetes en `internal/`: `erp` (modelo canónico + interfaz `Adapter`), `erp/mock`, `erp/saint` (lee `mapping.saint.yaml`, sin columnas en el código), `delta` (hash SHA-256 de `skupreciostocknombre` con 2 decimales; el diff compara una huella que además cubre categoría y activo), `batch` (lotes con la forma exacta del contrato, validados con el Zod real), `sync` (ciclo delta/reconciliación; `ErrEmptyInventory` protege el catálogo), `store` (SQLite pura Go: huellas, `meta`, cola `outbox`; WAL + synchronous FULL), `api` (cliente y clasificación de errores), `sender` (de uno en uno y en orden, backoff 1 s a 5 min con jitter, respeta `Retry-After`), `config` (YAML estricto), `agent` (une todo, heartbeat, apagado limpio). README del agente y `agent.example.yaml`.
   - Uso: `erp-agent -config agent.yaml [-once] [-reconcile]`; secretos por `ERP_AGENT_API_KEY` y `ERP_AGENT_SAINT_DSN`. Prueba contra el sandbox real: `SAINT_TEST_DSN` (si no, se omite).
   - E2E real: 311 productos y 48 clientes con conteos y sumas iguales; 1 producto mutado = 1 registro en `sync_logs`; corte de red y `kill -9` del agente sin pérdida de datos; la reconciliación desactiva lo eliminado.
   - Backlog que quedó fuera: ejecutar el agente como servicio de Windows; validar el mapeo contra un Saint real; pedidos hacia el ERP (Fase 7).
 
 ## Siguiente acción
-Cerrar la Fase 5 (push, PR, CI y merge con `phase-gate`) y escribir aquí el relevo de la Fase 6.
+Ejecutar la tarea **6.1** (catálogo B2B con búsqueda, categorías y precios en USD y Bs). Después 6.2 a 6.7 en orden, y `phase-gate` con el Gate 6 (bloque `## Fase 6` del ROADMAP). Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion; abajo, lo que hay que saber y mi propuesta por defecto (si no hay motivo para cambiarla, no preguntar).
+
+**Esfuerzo sugerido:** medio para 6.1, 6.5 y 6.7; alto para 6.2 (autenticación y aprobación: toca seguridad y probablemente una migración), 6.3 (crédito y dinero) y 6.4 (Realtime); medio-alto para 6.6 (simulador que dispara una sincronización real). El Gate 6 pide Playwright: decidir al principio.
+
+**Estado de `apps/web`:** solo el esqueleto de la Fase 2: Next.js 16 (App Router) + React 19 + Tailwind 4, `app/{layout,page,globals.css}` (una portada de dos líneas), jest + Testing Library (1 prueba), `pnpm lint` = `tsc --noEmit && eslint .`. **No hay** cliente de Supabase, ni Playwright, ni PWA, ni rutas. Paquete `@erp-web-bridge/web`; los contratos están en `@erp-web-bridge/shared-types` (Zod, CommonJS).
+
+**Cómo debe leer datos la web (la API NO tiene endpoints de lectura de catálogo):**
+- Lecturas (productos, categorías, clientes, pedidos, tasa, `sync_logs`): **Supabase directo con el JWT del usuario** (`@supabase/supabase-js` + `@supabase/ssr`, PostgREST), y es **RLS** quien decide qué ve cada uno. Políticas ya hechas (`..0200_rls.sql`): `products_select` (personal ve todo; un comprador solo `is_active`), `product_prices`/`price_lists` (el comprador solo su lista, `member_price_list_id`), `b2b_customers_select` (el comprador solo el suyo), `exchange_rates_select` (cualquier miembro), `organizations_select`. Hay que revisar qué más hace falta leer (p. ej. `web_orders`, `sync_logs`) y, si falta una política o un índice, añadir una **migración nueva** (nunca editar las existentes) con su prueba en `supabase/tests/rls.test.mjs`.
+- Escrituras de negocio: **por la API NestJS** con `Authorization: Bearer <jwt>` (guard `JwtGuard`): `POST /v1/orgs/:orgId/orders` (crea el pedido; valida crédito; el cuerpo solo trae SKU y cantidad, el servidor fija precios, total y tasa; 422 `credit_limit_exceeded`), `POST /v1/orgs/:orgId/exchange-rate` (solo owner/admin; fija la tasa manual), `GET /v1/orgs/:orgId/exchange-rate` y `/history`. OpenAPI en `/docs` y `/openapi.json` de la API.
+- **Supabase local completo** (`pnpm db:start`) incluye PostgREST (`http://127.0.0.1:54321`), GoTrue y Realtime; **el CI solo levanta base de datos y GoTrue** (sin PostgREST ni Realtime). Consecuencia: las pruebas E2E de Playwright del Gate 6 se corren **en local** (o hay que ampliar el `supabase start -x ...` del CI; decidir). Las claves `anon` y `service_role` salen de `pnpm db:status`; variables públicas `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` y `NEXT_PUBLIC_API_URL` van en `.env.example` (nunca secretos reales).
+- **Datos de prueba:** 2 organizaciones con usuarios (contraseña `demo1234`): `admin@demo-saint.test` (owner de demo-saint), `staff@demo-saint.test`, `cliente@demo-saint.test` (rol customer, cliente `C00001`), `admin@demo-mock.test` (owner de demo-mock). Claves de agente `erp_dev_demo_saint_key` y `erp_dev_demo_mock_key`. El seed tiene 45 productos en demo-saint; para tener un catálogo realista se puede correr el agente (`type: mock` con `products: 300`) contra una organización de prueba, o ingerir por `POST /v1/sync/products`.
+
+**Puntos de diseño que el ROADMAP deja abiertos y que hay que decidir en la tanda de dudas (mi propuesta por defecto entre paréntesis):**
+1. **6.2 "login con aprobación por el admin": el esquema NO tiene registro ni aprobación.** `org_members` solo admite `customer` atado a un `customer_id` existente, y los usuarios nacen por el seed. Hace falta un mecanismo: (propuesta: solicitud de acceso — tabla `customer_access_requests(org_id, email, tax_id, status pending|approved|rejected, ...)` creada por el comprador al registrarse con Supabase Auth; el admin la aprueba desde el panel, y la aprobación crea la fila de `org_members` con el `customer_id` que coincida por RIF/código; mientras esté pendiente el usuario existe en Auth pero no ve nada por RLS). Requiere migración + pruebas de RLS.
+2. **6.5 "Entrar como Administrador Demo":** (propuesta: un botón que inicia sesión como `admin@demo-saint.test` con una acción de servidor de Next, solo habilitada si `DEMO_MODE=true`; en producción real debe estar apagada).
+3. **6.6 Simulador de ERP:** (propuesta: una tabla editable en el panel admin con el inventario de una organización demo, cuyos cambios se envían por `POST /v1/sync/products` con la clave de agente de la organización guardada **solo en el servidor**; así se prueba la ruta real de ingesta sin el binario del agente. El `MockAdapter` del agente queda para demos con el binario.)
+4. **6.7 PWA:** (propuesta: manifest + service worker propio y sencillo, sin librerías con peso: precaché del shell y caché "stale-while-revalidate" de las lecturas del catálogo; Lighthouse PWA para el Gate).
+5. **Playwright** y Lighthouse como devDependencies en la raíz o en `apps/web`; navegadores de Playwright se descargan aparte (`pnpm exec playwright install chromium`); pnpm 12 puede pedir `approve-builds`.
+6. **Moneda:** precios en USD en la base; Bs = USD × `exchange_rate_bs` de la organización (la tasa vigente), redondeado a 2 decimales. Hacer una utilidad única y probada (en `shared-types` si la usan API y web) y no repetir la fórmula.
+7. **Estilo y UX:** español, Tailwind 4, accesible; sin librería de componentes pesada (propuesta: componentes propios mínimos).
+
+**Lo que ya existe y no hay que rehacer:** validación de crédito y creación de pedidos (API), tasa de cambio manual (API), RLS por `org_id`, ingesta de catálogo, heartbeat y `sync_logs` (el panel de 6.4 los muestra), y el agente Go completo.
+
+**Comandos de la fase:** `pnpm db:start` (Supabase local completo), `pnpm build`, `PORT=3001 node apps/api/dist/main.js`, `pnpm --filter @erp-web-bridge/web dev`, `pnpm lint`, `pnpm format:check`, `pnpm test`, `bash scripts/validate-workflow.sh`.
 
 ## Hilo de contexto (por qué estamos haciendo esto)
 - **Quién:** Orlando Guerra, ingeniero de sistemas full stack. Usa este proyecto como pieza central del portafolio de una agencia de software, y quiere que pueda escalar y venderse.
@@ -90,4 +114,4 @@ Cerrar la Fase 5 (push, PR, CI y merge con `phase-gate`) y escribir aquí el rel
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 5 completa y con el Gate verificado; cierre en curso.
+2026-11-26. Fase 5 fusionada (PR #6, CI en verde); rama de la Fase 6 creada con el relevo escrito.
