@@ -6,7 +6,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - **Fase actual:** 3, Base de datos y multi-tenant
 - **Rama:** `phase-3/database` (creada desde `main` tras el merge del PR #3; aún sin push)
 - **Última tarea completada:** 3.5 (`supabase/seed.sql`: 2 organizaciones, 45 productos, 60 precios por lista, 7 clientes, 4 usuarios con login real; re-aplicado dos veces con conteos idénticos; login GoTrue y RLS por PostgREST comprobados). Tareas 3.1 a 3.5 hechas.
-- **Estado de la fase:** todas las tareas marcadas. Falta `phase-gate` (Gate 3).
+- **Estado de la fase:** completa, Gate 3 en verde (`docs/evidence/phase-3.md`). PR abierto, a la espera de merge por `phase-gate`.
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -18,6 +18,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - **Fase 2** (PR #3, fusionado el 2026-11-26): monorepo y CI. Evidencia en `docs/evidence/phase-2.md`.
   - Workspace pnpm + Turborepo: `apps/api` (NestJS 11, `GET /health`), `apps/web` (Next.js 16 + Tailwind 4), `packages/shared-types` (contratos Zod en `src/contracts.ts`: `productSchema`, `productRecordSchema` con `sync_hash`, `customerSchema`, `orderSchema`, `syncBatchSchema` discriminado por `kind`, máx. 1000 registros; snake_case canónico, esquemas estrictos, 32 pruebas), módulo Go `packages/erp-agent` (`cmd/erp-agent`, `internal/version`).
   - CI en `.github/workflows/ci.yml` (jobs `typescript` y `go`, en cada PR y push a `main`), verde a la primera en el PR. ESLint + Prettier (`pnpm lint`, `pnpm format`, `pnpm format:check`) y `gofmt`/`go vet` en el job de Go.
+- **Fase 3** (PR #4): base de datos multi-tenant en Supabase local. Evidencia en `docs/evidence/phase-3.md`.
+  - CLI `supabase` 3.4.0 (devDependency), `supabase/config.jsonc`, 3 migraciones (`base`, `schema`, `rls`), `seed.sql` con 2 organizaciones, `supabase/tests/rls.test.mjs` (30 pruebas, `pnpm test:db`), atajos `pnpm db:start|stop|reset|status`, `docs/supabase-local.md`.
 
 ## Siguiente acción
 Ejecutar `phase-gate` de la Fase 3: reset desde cero sin errores, `pnpm test:db` 30/30, seed dos veces con conteos iguales (comandos en `docs/supabase-local.md`), más build/test/lint/format del monorepo y CI en verde en el PR. Escribir `docs/evidence/phase-3.md`. Después, el relevo a la Fase 4 (API NestJS).

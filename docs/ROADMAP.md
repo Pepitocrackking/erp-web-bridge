@@ -76,9 +76,9 @@ Rama: `phase-3/database`
 - [x] **3.5** Seed de dos organizaciones de prueba.
 
 ### Gate 3
-- [ ] Las migraciones se aplican desde cero sin errores.
-- [ ] Las pruebas de RLS pasan, incluidos los casos negativos.
-- [ ] Re-aplicar el seed no duplica datos.
+- [x] Las migraciones se aplican desde cero sin errores.
+- [x] Las pruebas de RLS pasan, incluidos los casos negativos.
+- [x] Re-aplicar el seed no duplica datos.
 
 ---
 
