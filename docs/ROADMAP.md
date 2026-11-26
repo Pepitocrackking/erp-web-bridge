@@ -55,7 +55,7 @@ Rama: `phase-2/monorepo-ci`
 
 - [x] **2.1** Workspace `pnpm` con Turborepo: `apps/web`, `apps/api`, `packages/shared-types`.
 - [x] **2.2** Módulo Go en `packages/erp-agent` con estructura base (`cmd/`, `internal/`).
-- [ ] **2.3** `shared-types`: contratos DTO (producto, cliente, pedido, lote de sincronización) con validación Zod.
+- [x] **2.3** `shared-types`: contratos DTO (producto, cliente, pedido, lote de sincronización) con validación Zod.
 - [ ] **2.4** GitHub Actions: lint, test y build de TypeScript y de Go en cada PR.
 - [ ] **2.5** Lint y formato configurados (ESLint/Prettier y `golangci-lint` o `go vet`).
 

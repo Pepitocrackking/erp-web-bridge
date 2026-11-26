@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-/** Contrato mínimo de humo; los DTO reales llegan en la tarea 2.3. */
+export * from "./contracts";
+
+/** Contrato de humo del endpoint GET /health. */
 export const healthSchema = z.object({
   status: z.literal("ok"),
 });
