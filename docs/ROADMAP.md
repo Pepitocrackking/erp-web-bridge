@@ -110,7 +110,7 @@ Rama: `phase-5/agent`
 - [x] **5.4** Almacén SQLite de hashes y delta sync SHA256 de `sku + precio + stock + nombre`.
 - [x] **5.5** Reconciliación completa periódica para detectar productos eliminados o desactivados.
 - [x] **5.6** Cliente HTTPS con reintentos con backoff, cola local y tolerancia a la caída de red o de luz.
-- [ ] **5.7** Configuración por archivo, logs estructurados y `heartbeat`.
+- [x] **5.7** Configuración por archivo, logs estructurados y `heartbeat`.
 
 ### Gate 5
 - [ ] E2E real: sandbox, agente, API, base de datos con 300 o más productos sincronizados y conteos iguales.

@@ -1,0 +1,39 @@
+# Configuración del agente. Copia este archivo a agent.yaml y ajústalo.
+# agent.yaml NO se commitea (tiene secretos). Las rutas relativas se resuelven
+# respecto a la carpeta de este archivo.
+#
+# Los secretos también pueden ir por entorno y tienen prioridad sobre el archivo:
+#   ERP_AGENT_API_KEY     -> api.api_key
+#   ERP_AGENT_SAINT_DSN   -> erp.saint.dsn
+
+api:
+  url: https://api.tu-dominio.com # https obligatorio (http solo hacia localhost)
+  api_key: CAMBIAME # la x-api-key de tu organización; la organización sale de la clave
+
+erp:
+  type: saint # saint | mock
+  saint:
+    # SQL Server de Saint. Sandbox local: puerto 14330, base SAINT_DEMO, usuario sa.
+    # Si la contraseña tiene caracteres especiales, codifícalos (p. ej. ! = %21).
+    dsn: "sqlserver://sa:CONTRASENA@localhost:14330?database=SAINT_DEMO&encrypt=disable"
+    # Mapeo de tablas/columnas de Saint -> campos canónicos. Si tu versión de Saint
+    # nombra algo distinto, se cambia en ese archivo, nunca en el agente.
+    mapping_file: ../../infra/saint-sandbox/mapping.saint.yaml
+  mock: # solo si type: mock (demos sin ERP físico)
+    products: 50
+    customers: 10
+    seed: 1
+
+sync:
+  interval: 30s # cada cuánto se lee el ERP y se envían solo los cambios (delta)
+  reconcile_interval: 24h # reconciliación completa (detecta eliminados); 0s = desactivada
+
+store:
+  path: agent.db # SQLite local: huellas de lo enviado y cola de lotes pendientes
+
+heartbeat:
+  interval: 1m # aviso de "sigo vivo" a la API (mínimo 5s)
+
+log:
+  level: info # debug | info | warn | error
+  format: json # json | text (a stderr)
