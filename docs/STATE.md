@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 4, API (NestJS)
 - **Rama:** `phase-4/api` (creada desde `main` tras el merge del PR #4; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 4. La Fase 3 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 4.1
+- **Última tarea completada:** 4.1 (autenticación `x-api-key` + JWT).
+- **Estado de la fase:** en curso. Siguiente tarea: 4.2
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -22,7 +22,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - CLI `supabase` 3.4.0 (devDependency), `supabase/config.jsonc`, 3 migraciones (`base`, `schema`, `rls`), `seed.sql` con 2 organizaciones, `supabase/tests/rls.test.mjs` (30 pruebas, `pnpm test:db`), atajos `pnpm db:start|stop|reset|status`, `docs/supabase-local.md`.
 
 ## Siguiente acción
-Ejecutar la tarea **4.1** (autenticación: `x-api-key` para agentes, JWT para usuarios). Después 4.2 a 4.7 en orden, y `phase-gate` con el Gate 4 (bloque `## Fase 4` del ROADMAP). Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion; mi propuesta por defecto para cada una (si no hay motivo para cambiarla, no preguntar):
+Ejecutar la tarea **4.2** (`POST /v1/sync/products`). Después 4.3 a 4.7 en orden, y `phase-gate` con el Gate 4 (bloque `## Fase 4` del ROADMAP). La tanda de dudas ya se resolvió (sin preguntas: se aplicó lo de abajo). **Hecho en 4.1** (ya existe, reutilizar): `src/config.ts` (`loadConfig`, `APP_CONFIG`), `src/database/database.module.ts` (módulo global; `DatabaseService.pool` y `withUser(userId, fn)` para consultas bajo RLS), `src/auth/` (`ApiKeyGuard` pone `req.agent = {orgId, slug}`, decorador `@Agent()`; `JwtGuard` + `@CurrentUser()`; `verifyHs256Jwt` propio con `node:crypto`, porque `jose` es solo ESM y rompe jest; algoritmo fijado a HS256, exige `exp`, `sub` y `role=authenticated`), y `test/helpers.ts` (`createTenant`, `createStaffUser`, `cleanup`, `userToken`, `signJwt`: pruebas de integración con tenants propios, sin depender del seed). Los guards se aplican con `@UseGuards(...)` por controlador. Plan para el resto (si no hay motivo para cambiarlo, seguirlo):
 
 - **Acceso a datos: `pg` directo, no supabase-js.** Ya es devDependency de la raíz (pasarla a `dependencies` de `apps/api`). El upsert masivo de 5.000 productos se hace con una sola sentencia (`INSERT ... SELECT * FROM unnest(...) ON CONFLICT (org_id, erp_sku) DO UPDATE`), por lotes de hasta 1000 como fija `SYNC_BATCH_MAX_RECORDS`. Conectar como `postgres` salta RLS: **el aislamiento entre tenants lo garantiza el código** (el `org_id` sale siempre de la API key, nunca del cuerpo) y hay que probarlo (Gate: una key de A no escribe en B).
 - **Endpoints de usuario (JWT, p. ej. tasa de cambio en 4.5):** preferible ejecutar la consulta en una transacción con `SET LOCAL ROLE authenticated` y `request.jwt.claims` (como hacen las pruebas de `supabase/tests/rls.test.mjs`), de modo que RLS y las políticas ya escritas aplican solos. Verificar el JWT con el secreto HS256 local (`JWT_SECRET` de `supabase status`: `super-secret-jwt-token-with-at-least-32-characters-long`); en producción habrá que pasar a JWKS.
@@ -83,4 +83,4 @@ Ejecutar la tarea **4.1** (autenticación: `x-api-key` para agentes, JWT para us
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 3 fusionada (PR #4, CI en verde); rama de la Fase 4 creada con el relevo escrito.
+2026-11-26. Fase 4 en curso: 4.1 hecha (23 pruebas en la API, 13 de integración contra Postgres real).

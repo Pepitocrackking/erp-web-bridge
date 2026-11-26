@@ -85,7 +85,7 @@ Rama: `phase-3/database`
 ## Fase 4: API (NestJS)
 Rama: `phase-4/api`
 
-- [ ] **4.1** Autenticación de agentes por `x-api-key` (comparación contra hash) y JWT para usuarios.
+- [x] **4.1** Autenticación de agentes por `x-api-key` (comparación contra hash) y JWT para usuarios.
 - [ ] **4.2** `POST /v1/sync/products`: upsert masivo por `(org_id, erp_sku)`, con desactivación de productos ausentes en una reconciliación completa.
 - [ ] **4.3** `POST /v1/sync/customers`: clientes con límite de crédito y deuda.
 - [ ] **4.4** `sync_logs` en cada sincronización y endpoint de `heartbeat` del agente.
