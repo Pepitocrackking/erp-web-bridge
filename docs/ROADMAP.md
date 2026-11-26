@@ -62,7 +62,7 @@ Rama: `phase-2/monorepo-ci`
 ### Gate 2
 - [x] `pnpm install && pnpm build && pnpm test` terminan en verde desde un clon limpio.
 - [x] `go build ./... && go test ./...` en verde.
-- [ ] El workflow de CI queda en verde en el propio PR.
+- [x] El workflow de CI queda en verde en el propio PR.
 
 ---
 

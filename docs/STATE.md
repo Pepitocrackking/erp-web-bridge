@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 2, Monorepo y CI
 - **Rama:** `phase-2/monorepo-ci` (creada desde `main` tras el merge del PR #2; aún sin push)
-- **Última tarea completada:** 2.5 (ESLint + Prettier + gofmt/vet en CI). Antes, 2.4 (workflow de CI, validado solo en sintaxis), 2.3 (contratos Zod), 2.2 (módulo Go base) y 2.1 (workspace pnpm + Turborepo). La Fase 1 está completa y fusionada.
-- **Estado de la fase:** todas las tareas hechas; falta `phase-gate` (Gate 2).
+- **Última tarea completada:** 2.5. Las 5 tareas de la fase están hechas.
+- **Estado de la fase:** Gate 2 completo (PR #3, CI en verde). Fusión por `phase-gate`.
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -16,8 +16,10 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Datos: 311 productos, 10 categorías, 3 depósitos (001, 002, 003), 48 clientes (algunos cerca o por encima de su límite de crédito). Códigos `P00001...` y `C00001...`.
   - Cómo levantarlo: `bash scripts/saint-sandbox.sh up` (ver "Cómo levantar el proyecto").
 
+- **Fase 2** (PR #3): monorepo y CI. Evidencia en `docs/evidence/phase-2.md`. Workspace pnpm + Turborepo (`apps/api` NestJS 11, `apps/web` Next.js 16 + Tailwind 4, `packages/shared-types` con contratos Zod), módulo Go `packages/erp-agent`, CI en `.github/workflows/ci.yml` (jobs `typescript` y `go`), ESLint + Prettier + gofmt/vet. Detalles y trampas conocidas más abajo.
+
 ## Siguiente acción
-Todas las tareas de la Fase 2 (2.1 a 2.5) están hechas. Ejecutar **`phase-gate`** con el Gate 2 (ver ROADMAP): clon limpio en un directorio nuevo con `pnpm install && pnpm build && pnpm test`, `go build ./... && go test ./...`, y CI en verde en el propio PR (`gh pr checks`) antes del merge. Si el CI falla en GitHub, corregir y repetir; no hay merge sin verde.
+(La escribe `phase-gate` al cerrar la fase.)
 
 Hecho en 2.5: `eslint.config.mjs` (typescript-eslint recomendado + eslint-config-prettier; ignora `packages/erp-agent` e `infra`), `.prettierrc.json`, `.prettierignore` (excluye md, docs, infra, scripts, `docker-compose.yml`, Go). Cada paquete: `lint` = `tsc --noEmit && eslint .`. Raíz: `pnpm format` y `pnpm format:check`. Go: `gofmt -l` y `go vet` van en el job `go` del CI (no hay script pnpm para Go). ESLint probado con una infracción real.
 
