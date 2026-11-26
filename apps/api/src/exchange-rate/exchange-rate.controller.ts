@@ -10,8 +10,12 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiQuery } from "@nestjs/swagger";
 import {
+  currentExchangeRateSchema,
+  exchangeRateEntrySchema,
   exchangeRateHistoryQuerySchema,
+  exchangeRateHistorySchema,
   exchangeRateInputSchema,
   type CurrentExchangeRate,
   type ExchangeRateEntry,
@@ -20,6 +24,8 @@ import {
   type ExchangeRateInput,
 } from "@erp-web-bridge/shared-types";
 import { CurrentUser, JwtGuard, type UserContext } from "../auth/auth.guards";
+import { ApiEndpoint } from "../common/openapi";
+import { RateLimit } from "../common/rate-limit";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { DatabaseService } from "../database/database.module";
 
@@ -52,6 +58,18 @@ export class ExchangeRateController {
 
   /** Fija la tasa. La fuente siempre es `manual` y `set_by` el usuario del token. */
   @Post()
+  @RateLimit("strict")
+  @ApiEndpoint({
+    tag: "exchange-rate",
+    summary: "Fijar la tasa de cambio manual",
+    description:
+      "Registra una tasa (Bs por USD) en el historial; pasa a ser la vigente de la organización. " +
+      "Solo owner y admin. La fuente siempre es manual y set_by el usuario del token.",
+    auth: "user",
+    body: exchangeRateInputSchema,
+    response: { status: 201, description: "Tasa registrada", schema: exchangeRateEntrySchema },
+    errors: [400, 403],
+  })
   async set(
     @Param("orgId", new ParseUUIDPipe()) orgId: string,
     @CurrentUser() user: UserContext,
@@ -81,6 +99,14 @@ export class ExchangeRateController {
 
   /** Tasa vigente. Cualquier miembro la lee; quien no lo es recibe 404 (no se revela la organización). */
   @Get()
+  @ApiEndpoint({
+    tag: "exchange-rate",
+    summary: "Tasa de cambio vigente",
+    description: "La lee cualquier miembro de la organización. Un no miembro recibe 404.",
+    auth: "user",
+    response: { status: 200, description: "Tasa vigente", schema: currentExchangeRateSchema },
+    errors: [400, 404],
+  })
   async current(
     @Param("orgId", new ParseUUIDPipe()) orgId: string,
     @CurrentUser() user: UserContext,
@@ -111,6 +137,28 @@ export class ExchangeRateController {
 
   /** Historial de tasas, de la más reciente a la más antigua, paginado. */
   @Get("history")
+  @ApiQuery({
+    name: "limit",
+    required: false,
+    schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+  })
+  @ApiQuery({
+    name: "offset",
+    required: false,
+    schema: { type: "integer", minimum: 0, default: 0 },
+  })
+  @ApiEndpoint({
+    tag: "exchange-rate",
+    summary: "Historial de tasas de cambio",
+    description: "De la más reciente a la más antigua, paginado.",
+    auth: "user",
+    response: {
+      status: 200,
+      description: "Página del historial",
+      schema: exchangeRateHistorySchema,
+    },
+    errors: [400, 404],
+  })
   async history(
     @Param("orgId", new ParseUUIDPipe()) orgId: string,
     @CurrentUser() user: UserContext,

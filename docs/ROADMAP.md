@@ -91,7 +91,7 @@ Rama: `phase-4/api`
 - [x] **4.4** `sync_logs` en cada sincronización y endpoint de `heartbeat` del agente.
 - [x] **4.5** Tasa de cambio manual: endpoints para fijarla y consultarla, con historial.
 - [x] **4.6** Pedidos: creación con validación de límite de crédito, `GET /v1/orders/pending` para el agente y confirmación idempotente.
-- [ ] **4.7** Rate limiting, validación estricta de entrada y documentación OpenAPI.
+- [x] **4.7** Rate limiting, validación estricta de entrada y documentación OpenAPI.
 
 ### Gate 4
 - [ ] Pruebas de integración contra un Postgres real (no mocks) en verde.

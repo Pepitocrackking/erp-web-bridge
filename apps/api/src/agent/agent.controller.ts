@@ -1,10 +1,12 @@
 import { Body, Controller, HttpCode, Post, UseGuards } from "@nestjs/common";
 import {
+  heartbeatResponseSchema,
   heartbeatSchema,
   type Heartbeat,
   type HeartbeatResponse,
 } from "@erp-web-bridge/shared-types";
 import { Agent, ApiKeyGuard, type AgentContext } from "../auth/auth.guards";
+import { ApiEndpoint } from "../common/openapi";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { DatabaseService } from "../database/database.module";
 
@@ -19,6 +21,17 @@ export class AgentController {
    * latido por minuto y organización llenaría la bitácora sin aportar nada.
    */
   @Post("heartbeat")
+  @ApiEndpoint({
+    tag: "agent",
+    summary: "Latido del agente local",
+    description:
+      "Registra que el agente sigue vivo (última hora y versión). Solo deja una fila en sync_logs " +
+      "si reporta last_error.",
+    auth: "agent",
+    body: heartbeatSchema,
+    response: { status: 200, description: "Latido registrado", schema: heartbeatResponseSchema },
+    errors: [400],
+  })
   @HttpCode(200)
   async heartbeat(
     @Agent() agent: AgentContext,
