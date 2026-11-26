@@ -72,7 +72,7 @@ Rama: `phase-3/database`
 - [x] **3.1** Supabase local con el CLI; migraciones en `supabase/migrations/`.
 - [x] **3.2** Esquema del manual más las correcciones: `org_members` y roles, `price_lists` y precios por lista, historial `exchange_rates`, imágenes y descripción de producto, estados completos del pedido.
 - [x] **3.3** Políticas RLS por `org_id` en todas las tablas.
-- [ ] **3.4** Pruebas automáticas de RLS: el tenant A no puede leer ni escribir datos del tenant B.
+- [x] **3.4** Pruebas automáticas de RLS: el tenant A no puede leer ni escribir datos del tenant B.
 - [ ] **3.5** Seed de dos organizaciones de prueba.
 
 ### Gate 3
