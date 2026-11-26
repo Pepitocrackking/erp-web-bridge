@@ -144,7 +144,7 @@ Rama: `phase-7/orders-to-erp`
 - [x] **7.1** El agente consulta los pedidos pendientes y los escribe en el sandbox solo como borrador.
 - [x] **7.2** Confirmación a la API con la referencia del ERP; estados `pending_sync`, `synced_to_erp`, `error`, con reintento.
 - [x] **7.3** Garantía de cero riesgo contable: prueba automática que falla si el agente escribe en tablas fiscales.
-- [ ] **7.4** El panel muestra el estado del pedido y el motivo de cualquier error.
+- [x] **7.4** El panel muestra el estado del pedido y el motivo de cualquier error.
 
 ### Gate 7
 - [ ] E2E real: pedido en la web, borrador en el sandbox, estado `synced_to_erp` en el panel.

@@ -168,6 +168,64 @@ test.describe("panel de administración", () => {
     await expect(page.getByTestId("pending-orders")).toHaveText(String(pendingBefore + 1));
   });
 
+  test("EN VIVO: un pedido que el ERP rechaza muestra su motivo y el personal lo reintenta", async ({
+    page,
+    request,
+  }) => {
+    await openPanel(page, USERS.admin);
+
+    const auth = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      headers: { apikey: ANON_KEY },
+      data: { email: USERS.customer, password: PASSWORD },
+    });
+    const token = (await auth.json()).access_token as string;
+    const created = await request.post(`${API_URL}/v1/orgs/${DEMO_ORG_ID}/orders`, {
+      headers: { authorization: `Bearer ${token}` },
+      data: { items: [{ sku: "P00001", quantity: 1 }] },
+    });
+    expect(created.status()).toBe(201);
+    const id = (await created.json()).id as string;
+
+    const row = page.locator(`tr[data-order-id="${id}"]`);
+    await expect(row.getByTestId("order-status")).toHaveText("Pendiente de enviar al ERP", {
+      timeout: 15_000,
+    });
+    await expect(row.getByTestId("order-error")).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Reintentar" })).toHaveCount(0);
+
+    // El agente informa que el ERP no puede aceptar el pedido (lo que hace el binario real).
+    const reason = 'El cliente "C00001" no existe en el ERP';
+    const failed = await request.post(`${API_URL}/v1/orders/${id}/fail`, {
+      headers: { "x-api-key": AGENT_KEY },
+      data: { error_detail: reason },
+    });
+    expect(failed.status()).toBe(200);
+
+    // Sin recargar: el estado cambia y el panel muestra el motivo y el botón.
+    await expect(row.getByTestId("order-status")).toHaveText("Error", { timeout: 15_000 });
+    await expect(row.getByTestId("order-error")).toHaveText(`Motivo: ${reason}`);
+    await expect(row.getByRole("button", { name: "Reintentar" })).toBeVisible();
+
+    // El personal lo reintenta: vuelve a la cola y desaparecen el motivo y el botón.
+    await row.getByRole("button", { name: "Reintentar" }).click();
+    await expect(row.getByTestId("order-status")).toHaveText("Pendiente de enviar al ERP", {
+      timeout: 15_000,
+    });
+    await expect(row.getByTestId("order-error")).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Reintentar" })).toHaveCount(0);
+
+    // Lo recoge el agente: queda enviado al ERP con su referencia (y deja de contar como pendiente).
+    const reference = `E2E-${randomUUID().slice(0, 8)}`;
+    const confirmed = await request.post(`${API_URL}/v1/orders/${id}/confirm`, {
+      headers: { "x-api-key": AGENT_KEY },
+      data: { erp_order_reference: reference },
+    });
+    expect(confirmed.status()).toBe(200);
+    await expect(row.getByTestId("order-status")).toHaveText("Enviado al ERP", { timeout: 15_000 });
+    await expect(row.getByTestId("order-ref")).toHaveText(reference);
+    await expect(row.getByTestId("order-error")).toHaveCount(0);
+  });
+
   test("el personal no administrador ve el panel pero no puede cambiar la tasa; el comprador no entra", async ({
     page,
   }) => {
