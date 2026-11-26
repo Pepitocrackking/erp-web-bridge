@@ -39,3 +39,14 @@ Generada el 2026-11-26 en un **clon limpio** de la rama `phase-3/database` (comm
 - **Sin `FORCE ROW LEVEL SECURITY`**: las funciones auxiliares deben leer `org_members` saltándose RLS para no recursar.
 - **`ORDER_STATUSES` de `shared-types` ampliado** a los 6 estados del CHECK (`pending_sync`, `synced_to_erp`, `approved`, `rejected`, `cancelled`, `error`), con prueba por cada uno.
 - **El CI actual no levanta Supabase**, así que `pnpm test:db` corre en local. Se puede añadir un job en una fase posterior.
+
+## Resultado del CI
+
+PR #4, ejecución https://github.com/Pepitocrackking/erp-web-bridge/actions/runs/45876950464, con `gh pr checks 4`:
+
+```
+Go (vet, build, test)           pass  13s
+TypeScript (lint, test, build)  pass  41s
+```
+
+El CI no levanta Supabase: las pruebas de RLS (`pnpm test:db`) se verificaron en local, en el clon limpio descrito arriba.
