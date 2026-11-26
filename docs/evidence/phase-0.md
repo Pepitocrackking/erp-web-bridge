@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `validate-workflow.sh` termina con código 0 | `bash scripts/validate-workflow.sh; echo EXIT=$?` | 17 comprobaciones `ok`, `RESULTADO: OK`, `EXIT=0` | Pasa |
 | Las 4 skills tienen frontmatter válido | mismo script | `next-task`, `phase-gate`, `checkpoint` y `resume`: `name` igual a la carpeta y `description` no vacía | Pasa |
-| PR de `phase-0/bootstrap` abierto contra `main` | `gh pr create --base main` | Se comprueba después de abrir el PR | Ver el PR |
+| PR de `phase-0/bootstrap` abierto contra `main` | `gh pr create --base main` | PR #1 abierto: https://github.com/Pepitocrackking/erp-web-bridge/pull/1 | Pasa |
 | `/resume` disponible en una sesión nueva tras el merge | Lo confirma el usuario | Pendiente: solo se puede comprobar después del merge | Pendiente |
 
 ## Salida del script de validación

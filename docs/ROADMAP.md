@@ -25,7 +25,7 @@ Rama: `phase-0/bootstrap`
 ### Gate 0
 - [x] `bash scripts/validate-workflow.sh` termina con código 0.
 - [x] Las 4 skills tienen frontmatter válido (`name` igual al nombre de su carpeta y `description` no vacía).
-- [ ] PR de `phase-0/bootstrap` abierto contra `main` con la evidencia en el cuerpo.
+- [x] PR de `phase-0/bootstrap` abierto contra `main` con la evidencia en el cuerpo (PR #1).
 - [ ] Tras el merge, en una sesión nueva `/resume` aparece como skill disponible (lo confirma el usuario).
 
 ---
