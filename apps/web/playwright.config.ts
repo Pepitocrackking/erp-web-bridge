@@ -29,7 +29,7 @@ export default defineConfig({
     },
     {
       command: `pnpm build && pnpm exec next start -p ${WEB_PORT}`,
-      env: { API_URL: `http://localhost:${API_PORT}` },
+      env: { API_URL: `http://localhost:${API_PORT}`, DEMO_MODE: "true" },
       url: `http://localhost:${WEB_PORT}/login`,
       reuseExistingServer: true,
       timeout: 240_000,

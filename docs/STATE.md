@@ -5,14 +5,18 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** 6.4 (panel admin en tiempo real).
-- **Estado de la fase:** en curso. Siguiente tarea: 6.5 (esfuerzo bajo: botón "Entrar como Administrador Demo"). Después 6.6 (medio-alto), 6.7 (medio) y el Gate 6.
+- **Última tarea completada:** 6.5 ("Entrar como Administrador Demo").
+- **Estado de la fase:** en curso. Siguiente tarea: 6.6 (esfuerzo medio-alto: simulador de ERP). Después 6.7 (medio) y el Gate 6.
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
 - **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
 - **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
 - **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.5 (para no rehacerlo)
+- `lib/demo.ts` (`isDemoMode`, `demoAdminCredentials`): solo con `DEMO_MODE=true` **exacto** (variable de servidor, sin `NEXT_PUBLIC_`). `signInDemo` (en `app/login/actions.ts`) la vuelve a comprobar aunque el botón esté oculto, inicia sesión con `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (por defecto el admin del seed) y manda a `/admin`. La página `/login` muestra el botón solo en modo demo.
+- Playwright arranca la web con `DEMO_MODE=true`; `apps/web/.env.local` **no** lo define (sin él, el botón no aparece: comprobado a mano, 0 coincidencias). **En producción real no definir `DEMO_MODE`.** E2E `e2e/demo.spec.ts` (2 pruebas, total 34) y 3 pruebas unitarias.
 
 ### Hecho en la 6.4 (para no rehacerlo)
 - Migración `..0800_admin_realtime.sql`: crea (si falta) la publicación `supabase_realtime` y le añade `sync_logs`, `web_orders` y `exchange_rates`; da SELECT a `authenticated` sobre `organizations.last_heartbeat_at` y `agent_version`. `organizations` **no** se publica (permisos por columna); el panel la relee cuando llega un evento de la bitácora y cada 30 s (el latido no emite eventos). 2 pruebas nuevas en `rls.test.mjs` (ahora 48).
@@ -151,4 +155,4 @@ Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 en curso: tareas 6.1 a 6.4 hechas (32 E2E, 57 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde).
+2026-11-26. Fase 6 en curso: tareas 6.1 a 6.5 hechas (34 E2E, 60 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde).
