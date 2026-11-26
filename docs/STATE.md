@@ -3,10 +3,10 @@
 Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo lee `retomar`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
 
 ## Posición
-- **Fase actual:** 3, Base de datos y multi-tenant
-- **Rama:** `phase-3/database` (creada desde `main` tras el merge del PR #3; aún sin push)
-- **Última tarea completada:** 3.5 (`supabase/seed.sql`: 2 organizaciones, 45 productos, 60 precios por lista, 7 clientes, 4 usuarios con login real; re-aplicado dos veces con conteos idénticos; login GoTrue y RLS por PostgREST comprobados). Tareas 3.1 a 3.5 hechas.
-- **Estado de la fase:** completa, Gate 3 en verde (`docs/evidence/phase-3.md`). PR abierto, a la espera de merge por `phase-gate`.
+- **Fase actual:** 4, API (NestJS)
+- **Rama:** `phase-4/api` (creada desde `main` tras el merge del PR #4; aún sin push)
+- **Última tarea completada:** ninguna de la Fase 4. La Fase 3 está completa y fusionada.
+- **Estado de la fase:** por empezar. Siguiente tarea: 4.1
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -18,21 +18,22 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - **Fase 2** (PR #3, fusionado el 2026-11-26): monorepo y CI. Evidencia en `docs/evidence/phase-2.md`.
   - Workspace pnpm + Turborepo: `apps/api` (NestJS 11, `GET /health`), `apps/web` (Next.js 16 + Tailwind 4), `packages/shared-types` (contratos Zod en `src/contracts.ts`: `productSchema`, `productRecordSchema` con `sync_hash`, `customerSchema`, `orderSchema`, `syncBatchSchema` discriminado por `kind`, máx. 1000 registros; snake_case canónico, esquemas estrictos, 32 pruebas), módulo Go `packages/erp-agent` (`cmd/erp-agent`, `internal/version`).
   - CI en `.github/workflows/ci.yml` (jobs `typescript` y `go`, en cada PR y push a `main`), verde a la primera en el PR. ESLint + Prettier (`pnpm lint`, `pnpm format`, `pnpm format:check`) y `gofmt`/`go vet` en el job de Go.
-- **Fase 3** (PR #4): base de datos multi-tenant en Supabase local. Evidencia en `docs/evidence/phase-3.md`.
+- **Fase 3** (PR #4, fusionado el 2026-11-26, CI en verde): base de datos multi-tenant en Supabase local. Evidencia en `docs/evidence/phase-3.md`.
   - CLI `supabase` 3.4.0 (devDependency), `supabase/config.jsonc`, 3 migraciones (`base`, `schema`, `rls`), `seed.sql` con 2 organizaciones, `supabase/tests/rls.test.mjs` (30 pruebas, `pnpm test:db`), atajos `pnpm db:start|stop|reset|status`, `docs/supabase-local.md`.
 
 ## Siguiente acción
-Ejecutar `phase-gate` de la Fase 3: reset desde cero sin errores, `pnpm test:db` 30/30, seed dos veces con conteos iguales (comandos en `docs/supabase-local.md`), más build/test/lint/format del monorepo y CI en verde en el PR. Escribir `docs/evidence/phase-3.md`. Después, el relevo a la Fase 4 (API NestJS).
+Ejecutar la tarea **4.1** (autenticación: `x-api-key` para agentes, JWT para usuarios). Después 4.2 a 4.7 en orden, y `phase-gate` con el Gate 4 (bloque `## Fase 4` del ROADMAP). Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion; mi propuesta por defecto para cada una (si no hay motivo para cambiarla, no preguntar):
 
-Detalles técnicos para hacerlo bien a la primera:
-- **Supabase ya está instalado (3.1):** CLI `supabase` 3.4.0 en la raíz (`pnpm exec supabase ...`; atajos `pnpm db:start|stop|reset|status`, ver `docs/supabase-local.md`). La pila está levantada (contenedor de BD `supabase_db_erp-web-bridge`, `docker exec ... psql -U postgres`; URL `postgresql://postgres:postgres@127.0.0.1:54322/postgres`). La configuración es `supabase/config.jsonc` (formato nuevo, no `.toml`); está en `.prettierignore`. `db reset` aplica migraciones y seed desde cero. No cambiar a la pila experimental.
-- Layout: `supabase/migrations/<timestamp>_<nombre>.sql` (ya existe `20261126000000_base.sql` con pgcrypto y `public.set_updated_at()` para triggers), `supabase/seed.sql` (provisional, lo reemplaza 3.5). Las migraciones son SQL plano e idempotentes en lo posible; el seed debe poder re-aplicarse sin duplicar (usar `ON CONFLICT DO NOTHING` o claves fijas).
-- Esquema base: manual, sección 5 (`organizations`, `products`, `b2b_customers`, `web_orders`, `sync_logs`). Correcciones de 3.2 que pide el ROADMAP: `org_members` con roles, `price_lists` y precios por lista (el mapeo de Saint ya expone `Precio1/2/3`), historial `exchange_rates`, imágenes y descripción de producto, y estados completos del pedido (el contrato Zod actual solo tiene `pending_sync | synced_to_erp | error`: ampliar el esquema SQL y mantener `shared-types` alineado, con sus pruebas).
-- Alineación con `packages/shared-types`: los nombres de columna del SQL deben coincidir con los campos canónicos snake_case (`sku` mapea a `erp_sku` en la tabla; `customer_code` a `erp_customer_code`). Documentar esa correspondencia.
-- RLS (3.3 y 3.4): todas las tablas con `org_id` llevan RLS activada y políticas por pertenencia (`org_members`). Las pruebas de 3.4 deben ser automáticas y correr contra la base local: crear dos tenants y un usuario en cada uno, y comprobar con roles `authenticated` reales (no con `service_role`, que se salta RLS) que A no lee ni escribe datos de B, incluidos `INSERT` con `org_id` ajeno y `UPDATE`/`DELETE` cruzados. Incluir casos negativos explícitos. Elegir el runner con criterio (pgTAP vía `supabase test db`, o un script con `pg`); el Gate exige que sean repetibles.
-- El agente se autenticará por `x-api-key` contra `organizations.api_key_hash` (fase 4); no hace falta implementarlo aún, pero el hash debe poder guardarse y compararse.
-- Para el Gate 3: `supabase db reset` (o `supabase stop --no-backup` y `start`) desde cero sin errores, pruebas de RLS en verde, y re-aplicar el seed dos veces sin cambiar los conteos.
-- El CI actual (jobs `typescript` y `go`) no levanta Supabase. Si se quiere correr las pruebas de RLS en CI, añadir un job nuevo; no es obligatorio para el Gate 3.
+- **Acceso a datos: `pg` directo, no supabase-js.** Ya es devDependency de la raíz (pasarla a `dependencies` de `apps/api`). El upsert masivo de 5.000 productos se hace con una sola sentencia (`INSERT ... SELECT * FROM unnest(...) ON CONFLICT (org_id, erp_sku) DO UPDATE`), por lotes de hasta 1000 como fija `SYNC_BATCH_MAX_RECORDS`. Conectar como `postgres` salta RLS: **el aislamiento entre tenants lo garantiza el código** (el `org_id` sale siempre de la API key, nunca del cuerpo) y hay que probarlo (Gate: una key de A no escribe en B).
+- **Endpoints de usuario (JWT, p. ej. tasa de cambio en 4.5):** preferible ejecutar la consulta en una transacción con `SET LOCAL ROLE authenticated` y `request.jwt.claims` (como hacen las pruebas de `supabase/tests/rls.test.mjs`), de modo que RLS y las políticas ya escritas aplican solos. Verificar el JWT con el secreto HS256 local (`JWT_SECRET` de `supabase status`: `super-secret-jwt-token-with-at-least-32-characters-long`); en producción habrá que pasar a JWKS.
+- **Validación:** reutilizar los esquemas Zod de `packages/shared-types` (`syncBatchSchema`, `customerSchema`, `orderSchema`...) con un pipe propio; no duplicar contratos. **Rate limiting:** `@nestjs/throttler`. **OpenAPI:** `@nestjs/swagger`. Nest sigue en 11.x (no subir a 12, ver Decisiones).
+- **API key:** la clave llega en `x-api-key`, se hashea con SHA-256 (hex) y se busca por `organizations.api_key_hash` (único). Comparar en tiempo constante. Claves de desarrollo del seed: `erp_dev_demo_saint_key` (org A, `demo-saint`, id `b0000000-0000-4000-8000-00000000000a`) y `erp_dev_demo_mock_key` (org B, `demo-mock`, id `...00000b`). Organización inactiva (`is_active = false`) debe rechazarse.
+- **Pedidos (4.6):** los crea solo la API (los usuarios no tienen INSERT en `web_orders`). Validar límite de crédito: `current_debt_usd` + pedidos aún no sincronizados + total nuevo ≤ `credit_limit_usd`. El precio sale de la lista del cliente (`product_prices`, y si no hay, `products.price_usd`), la tasa de `organizations.exchange_rate_bs`. Confirmación idempotente: pasar a `synced_to_erp` con `erp_order_reference` una sola vez; confirmar dos veces no duplica ni cambia nada (Gate). Estados válidos: `pending_sync`, `synced_to_erp`, `approved`, `rejected`, `cancelled`, `error`.
+- **Tasa (4.5):** insertar en `exchange_rates` (`source = manual`, `set_by` = usuario); el trigger `apply_exchange_rate` actualiza `organizations.exchange_rate_bs`.
+- **Sincronización (4.2 a 4.4):** cada lote deja una fila en `sync_logs` (`direction = erp_to_cloud`, `entity`, `batch_id`, `status` en `success|partial|error`) y actualiza `organizations.last_sync_at`. Reconciliación completa (`full_reconciliation = true`): desactivar (`is_active = false`) lo que no venga; ojo, un inventario completo llega en varios lotes de 1000, así que hay que decidir cómo se agrupan (p. ej. por `batch_id` + marca de último lote o una sesión de reconciliación); anotar la decisión aquí. `sync_hash` lo calcula el agente; la API lo guarda y puede usarlo para omitir filas sin cambios.
+- **Pruebas de integración contra Postgres real** (Gate): usar la base local de Supabase (`pnpm db:start`, `pnpm db:reset` para el seed) con Jest + supertest, sin mocks de base. Crear sus propios tenants con ids propios o transacciones, y no depender de que el seed esté en un estado concreto. Medir y registrar en la evidencia los tiempos de ingesta de 5.000 productos.
+- **Variables de entorno:** `DATABASE_URL` (por defecto `postgresql://postgres:postgres@127.0.0.1:54322/postgres`) y `SUPABASE_JWT_SECRET`; documentarlas en `.env.example`, sin secretos reales.
+- **CI:** el job `typescript` no levanta Supabase. Para las pruebas de integración del Gate 4 conviene añadir un job que instale el CLI y haga `supabase start` (descarga imágenes, unos minutos); el Gate pide que corran en verde, y si el CI no puede, dejar constancia en la evidencia de dónde se ejecutaron.
 
 ## Hilo de contexto (por qué estamos haciendo esto)
 - **Quién:** Orlando Guerra, ingeniero de sistemas full stack. Usa este proyecto como pieza central del portafolio de una agencia de software, y quiere que pueda escalar y venderse.
@@ -62,6 +63,9 @@ Detalles técnicos para hacerlo bien a la primera:
 - TypeScript fijado en `~5.9.3` (la 7.x está disponible pero no se ha probado con Nest, Next ni ts-jest).
 
 ## Trampas conocidas del entorno
+- **Supabase local (Fase 3):** CLI 3.4.0 en la raíz (`pnpm exec supabase ...`; atajos `pnpm db:start|stop|reset|status`; ver `docs/supabase-local.md`). La pila usa los puertos 54321 a 54324, la BD es `postgresql://postgres:postgres@127.0.0.1:54322/postgres` y el contenedor `supabase_db_erp-web-bridge`. `pnpm test:db` corre las 30 pruebas de RLS. El primer `supabase start` descarga imágenes (~4 min). En Git Bash, `docker exec ... psql -f /tmp/x.sql` convierte la ruta: pasar el SQL por stdin (`docker exec -i ... psql < archivo`). El CLI muestra avisos pidiendo cambiar a la "pila experimental": ignorarlos, no cambiar `config.jsonc`.
+- **Git Credential Manager:** había un diálogo "Select an account" en cada push (dos cuentas guardadas). Resuelto con `git config --local credential.https://github.com.username Pepitocrackking` en este repo. Si reaparece en un clon nuevo, repetirlo.
+- Un `git push` puede tardar más de 2 minutos en terminar: usarlo con `run_in_background` o esperar su notificación, no lanzar otro.
 - `pnpm-workspace.yaml` tiene `allowBuilds: '@parcel/watcher': false` (dependencia nativa opcional de jest, solo para `--watch`). pnpm 12 bloquea los scripts de build de las dependencias nuevas: si un `pnpm install` termina con `ERR_PNPM_IGNORED_BUILDS`, decidir con `pnpm approve-builds '<pkg>'` o `'!<pkg>'`.
 - pnpm 12 aplica una política de edad mínima de releases: una versión recién publicada puede hacer fallar `pnpm install` ("lockfile contains entries that the active policies reject"). Si el lockfile es propio, `rm pnpm-lock.yaml && pnpm install`.
 - En este shell los heredocs largos (`cat > f <<'EOF'` con muchos archivos en un solo comando) fallan con `unexpected EOF`: crear archivos con la herramienta Write. Un `python3 - <<...` vacío se cuelga: no usarlo.
@@ -72,10 +76,11 @@ Detalles técnicos para hacerlo bien a la primera:
 - Ninguno.
 
 ## Cómo levantar el proyecto
+- Supabase local: `pnpm db:start`, `pnpm db:reset` (migraciones y seed), `pnpm test:db` (RLS); detalles en `docs/supabase-local.md`.
 - Sandbox de Saint: `bash scripts/saint-sandbox.sh up` (o `powershell -File scripts\saint-sandbox.ps1 up`); detalles en `docs/saint-sandbox.md`.
 - TypeScript: `pnpm install`, luego `pnpm build`, `pnpm test`, `pnpm lint`, `pnpm format:check`. API compilada: `PORT=3001 node apps/api/dist/main.js` y `GET /health`.
 - Go: `cd packages/erp-agent && go build ./... && go test ./... && go vet ./... && gofmt -l .`
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Tarea 3.5 hecha; Fase 3 lista para el Gate.
+2026-11-26. Fase 3 fusionada (PR #4, CI en verde); rama de la Fase 4 creada con el relevo escrito.
