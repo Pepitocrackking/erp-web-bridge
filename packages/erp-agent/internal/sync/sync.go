@@ -16,9 +16,6 @@ import (
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/store"
 )
 
-// metaLastReconcile guarda, por tipo, cuándo se planificó la última reconciliación.
-func metaLastReconcile(kind string) string { return "last_reconcile_" + kind }
-
 // ErrEmptyInventory se devuelve cuando el ERP no entrega ningún registro pero
 // ya se habían enviado antes: casi seguro es un fallo de lectura o un filtro
 // mal puesto, y reconciliar así desactivaría todo el catálogo en la nube.
@@ -69,7 +66,7 @@ func (s *Syncer) due(ctx context.Context, kind string) (bool, error) {
 	if s.ReconcileEvery <= 0 {
 		return false, nil
 	}
-	v, err := s.Store.Meta(ctx, metaLastReconcile(kind))
+	v, err := s.Store.Meta(ctx, store.MetaLastReconcile(kind))
 	if err != nil {
 		return false, err
 	}
@@ -103,7 +100,7 @@ func (s *Syncer) products(ctx context.Context, force bool, res *Result) error {
 	if err != nil {
 		return err
 	}
-	known, err := s.Store.Fingerprints(ctx, store.KindProducts)
+	known, err := s.Store.Known(ctx, store.KindProducts)
 	if err != nil {
 		return err
 	}
@@ -139,7 +136,7 @@ func (s *Syncer) customers(ctx context.Context, force bool, res *Result) error {
 	if err != nil {
 		return err
 	}
-	known, err := s.Store.Fingerprints(ctx, store.KindCustomers)
+	known, err := s.Store.Known(ctx, store.KindCustomers)
 	if err != nil {
 		return err
 	}
@@ -180,7 +177,7 @@ func (s *Syncer) enqueue(ctx context.Context, kind string, entries []batch.Entry
 	if reconcile {
 		// Se anota al planificar (no al entregar): así, con la red caída, no se
 		// replanifica una reconciliación nueva en cada ciclo.
-		if err := s.Store.SetMeta(ctx, metaLastReconcile(kind), s.now().UTC().Format(time.RFC3339)); err != nil {
+		if err := s.Store.SetMeta(ctx, store.MetaLastReconcile(kind), s.now().UTC().Format(time.RFC3339)); err != nil {
 			return err
 		}
 	}

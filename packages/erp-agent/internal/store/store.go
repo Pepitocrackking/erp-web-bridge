@@ -33,6 +33,20 @@ var migrations = []string{
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	) WITHOUT ROWID`,
+	`CREATE TABLE outbox (
+		seq               INTEGER PRIMARY KEY AUTOINCREMENT,
+		batch_id          TEXT NOT NULL UNIQUE,
+		kind              TEXT NOT NULL,
+		reconciliation_id TEXT NOT NULL DEFAULT '',
+		final             INTEGER NOT NULL DEFAULT 0,
+		records           INTEGER NOT NULL DEFAULT 0,
+		body              BLOB NOT NULL,
+		commit_json       TEXT NOT NULL,
+		attempts          INTEGER NOT NULL DEFAULT 0,
+		last_error        TEXT NOT NULL DEFAULT '',
+		created_at        TEXT NOT NULL
+	)`,
+	`CREATE INDEX outbox_reconciliation ON outbox (reconciliation_id)`,
 }
 
 // Commit describe qué huellas se guardan cuando la nube confirma un lote.

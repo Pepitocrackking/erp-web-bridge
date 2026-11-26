@@ -17,18 +17,9 @@ import (
 // MaxRecords es el máximo de registros por lote que acepta la API.
 const MaxRecords = 1000
 
-// Entry es un lote listo para enviar. Body es el JSON EXACTO del cuerpo: al
-// reenviar tras un corte se manda el mismo cuerpo y el mismo batch_id, así la
-// API lo reconoce como duplicado y no repite el trabajo.
-type Entry struct {
-	BatchID          string       `json:"batch_id"`
-	Kind             string       `json:"kind"` // store.KindProducts | store.KindCustomers
-	ReconciliationID string       `json:"reconciliation_id,omitempty"`
-	Final            bool         `json:"final"`
-	Records          int          `json:"records"`
-	Body             []byte       `json:"body"`
-	Commit           store.Commit `json:"commit"` // huellas a guardar cuando la nube confirme
-}
+// Entry es un lote listo para enviar (ver store.Entry): Body es el JSON EXACTO
+// del cuerpo, para reenviarlo idéntico tras un corte.
+type Entry = store.Entry
 
 // Builder construye lotes. Now y NewID se pueden sustituir en las pruebas.
 type Builder struct {
