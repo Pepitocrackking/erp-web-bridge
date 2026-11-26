@@ -270,3 +270,29 @@ export const confirmOrderResultSchema = z.strictObject({
   duplicate: z.boolean(),
 });
 export type ConfirmOrderResult = z.infer<typeof confirmOrderResultSchema>;
+
+/** Largo máximo del motivo de un fallo permanente (cabe en la fila de web_orders y en el panel). */
+export const ORDER_ERROR_DETAIL_MAX = 1000;
+
+/** Cuerpo de POST /v1/orders/:orderId/fail: el ERP no puede aceptar el pedido y reintentar no lo arregla. */
+export const failOrderInputSchema = z.strictObject({
+  error_detail: z.string().trim().min(1).max(ORDER_ERROR_DETAIL_MAX),
+});
+export type FailOrderInput = z.infer<typeof failOrderInputSchema>;
+
+/** duplicate=true: el pedido ya estaba en error; no se cambió nada (se conserva el primer motivo). */
+export const failOrderResultSchema = z.strictObject({
+  id: z.uuid(),
+  status: orderStatusSchema,
+  error_detail: z.string().nullable(),
+  duplicate: z.boolean(),
+});
+export type FailOrderResult = z.infer<typeof failOrderResultSchema>;
+
+/** changed=false: el pedido ya estaba pendiente de enviar; no se cambió nada. */
+export const retryOrderResultSchema = z.strictObject({
+  id: z.uuid(),
+  status: orderStatusSchema,
+  changed: z.boolean(),
+});
+export type RetryOrderResult = z.infer<typeof retryOrderResultSchema>;

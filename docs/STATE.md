@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 7, Pedidos hacia el ERP
 - **Rama:** `phase-7/orders-to-erp` (sin push todavía)
-- **Última tarea completada:** 7.1 (el agente escribe los pedidos pendientes en el sandbox como borrador).
-- **Estado de la fase:** en curso. Siguiente tarea: 7.2
+- **Última tarea completada:** 7.2 (confirmación con la referencia del ERP, fallo permanente con motivo y reintento del personal).
+- **Estado de la fase:** en curso. Siguiente tarea: 7.3
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -46,12 +46,13 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - Interfaz `erp.OrderWriter` (aparte de `erp.Adapter`, que sigue siendo de solo lectura); la cumplen `saint` y `mock`. `*erp.RejectedError` = rechazo permanente (cliente o SKU inexistente o inactivo en el ERP); cualquier otro error es transitorio.
 - Paquete `internal/orders` (`Processor.Cycle`): de uno en uno y en orden, `limit` 50 (config `orders.enabled` / `orders.limit`); rechazo = se anota y se sigue; error transitorio = corta el ciclo. Se ejecuta dentro de cada ciclo del agente (`App.ordersCycle`), y su error hace fallar `-once`.
 - **No** se hace la página `/pedidos` del comprador (no está en el ROADMAP): 7.4 se cumple con el panel `/admin`.
-- Pendiente para 7.2: tras escribir el borrador, el agente debe llamar a `confirm` (hoy `Processor` NO confirma: por eso los pedidos siguen `pending_sync` y cada ciclo los vuelve a ver, con `Created=false`); un rechazo debe informarse a la API (endpoint nuevo `POST /v1/orders/:orderId/fail`).
+- **7.2 hecha.** API: `POST /v1/orders/:orderId/fail` (agente; `{error_detail}`; pendiente → `error`, idempotente con `duplicate: true`, 409 en otros estados, deja una fila `error` en `sync_logs`) y `POST /v1/orgs/:orgId/orders/:orderId/retry` (JWT del personal owner/admin/staff; `error` → `pending_sync` y borra `error_detail`; ya pendiente = `changed: false`; 403 comprador, 404 no miembro; no revalida el crédito). Contratos `failOrderInputSchema`, `failOrderResultSchema`, `retryOrderResultSchema` en shared-types. Agente: `Processor` confirma tras escribir el borrador y, si el ERP rechaza, llama a `fail` con el motivo. Reintentos: cualquier fallo transitorio (red, ERP, API, 401) corta el ciclo y deja el pedido pendiente; el siguiente ciclo lo recoge, el ERP devuelve el mismo borrador (`Created=false`) y se confirma. Un 409/4xx de la API al confirmar o informar se anota y se sigue (el pedido ya no está pendiente). Corrida real verificada: C00001 → `synced_to_erp` con `PW…`; C99999 (solo en la nube) → `error` con el motivo; retry con JWT real de GoTrue → `pending_sync`; tras dar de alta C99999 en el ERP → `synced_to_erp`; 2 borradores en total, sin duplicados.
+- **Falta para 7.4:** botón "Reintentar" en el panel (acción de servidor de Next que llama a `/retry` con el JWT de la sesión) para los pedidos en `error`; el motivo ya se ve en el panel (`error_detail`), comprobarlo con un pedido real y con Realtime.
 - Para 7.3: crear en el sandbox las tablas fiscales de ejemplo (`SAFACT`, `SAITEMFAC`, `SAACXC`), el login SQL `erp_agent` con GRANT solo a los borradores y DENY a las fiscales, la lista blanca en el código (`OrderDraft.WriteTables()`) y la prueba que intenta escribir en una fiscal.
 - Los datos de 7.1 se verificaron con una corrida real (org de prueba `e2e-fase7`, ya borrada): 2 borradores con `Estado`='B', 3 renglones cada uno, la segunda pasada no duplicó. Las pruebas de integración usan `SAINT_TEST_DSN='sqlserver://sa:Saint_Demo_2026%21@localhost:14330?database=SAINT_DEMO&encrypt=disable'` y limpian lo que escriben.
 
 ## Siguiente acción
-Ejecutar la tarea **7.1** del bloque `## Fase 7` de `docs/ROADMAP.md` (el agente consulta los pedidos pendientes y los escribe en el sandbox **solo como borrador**). Después 7.2 a 7.4 en orden y `phase-gate` con el Gate 7. Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion; abajo, lo que existe, lo que falta y mi propuesta por defecto (si no hay motivo para cambiarla, no preguntar).
+Ejecutar la tarea **7.3** del bloque `## Fase 7` de `docs/ROADMAP.md` (garantía de cero riesgo contable). Después 7.4 y `phase-gate` con el Gate 7. Las dudas de la fase ya se resolvieron (sección «Decisiones de la Fase 7»): no preguntar. La lista de abajo (puntos de diseño y lo que existe) es el análisis original; 7.1 y 7.2 ya están hechas.
 
 **Esfuerzo sugerido:** alto para 7.1 (escritura en el ERP, idempotencia), 7.2 (estados, reintentos, endpoint nuevo) y 7.3 (garantía de no escritura fiscal: seguridad de datos); bajo para 7.4 (el panel ya muestra el estado, ver abajo).
 
@@ -140,4 +141,4 @@ Ejecutar la tarea **7.1** del bloque `## Fase 7` de `docs/ROADMAP.md` (el agente
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Tarea 7.1 hecha (borradores en el sandbox). Falta 7.2 a 7.4 y el Gate 7.
+2026-11-26. Tareas 7.1 y 7.2 hechas. Falta 7.3, 7.4 y el Gate 7.

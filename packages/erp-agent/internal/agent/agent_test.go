@@ -25,6 +25,8 @@ type cloud struct {
 	heartbeats []map[string]any
 	pending    []map[string]any // pedidos que devuelve GET /v1/orders/pending
 	orderGets  int
+	confirmed  map[string]string // id del pedido -> referencia con la que se confirmó
+	failed     map[string]string // id del pedido -> motivo informado
 }
 
 func newCloud(t *testing.T) *cloud {
@@ -46,6 +48,26 @@ func newCloud(t *testing.T) *cloud {
 		var m map[string]any
 		json.Unmarshal(raw, &m)
 		w.Header().Set("Content-Type", "application/json")
+		if parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/"); len(parts) == 4 && parts[1] == "orders" {
+			id, action := parts[2], parts[3]
+			if c.confirmed == nil {
+				c.confirmed, c.failed = map[string]string{}, map[string]string{}
+			}
+			if action == "confirm" {
+				c.confirmed[id], _ = m["erp_order_reference"].(string)
+			} else {
+				c.failed[id], _ = m["error_detail"].(string)
+			}
+			kept := c.pending[:0:0]
+			for _, o := range c.pending { // ya no está pendiente
+				if o["id"] != id {
+					kept = append(kept, o)
+				}
+			}
+			c.pending = kept
+			json.NewEncoder(w).Encode(map[string]any{"id": id, "status": "synced_to_erp", "erp_order_reference": m["erp_order_reference"], "duplicate": false})
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, "/heartbeat") {
 			c.heartbeats = append(c.heartbeats, m)
 			io.WriteString(w, `{"ok":true,"server_time":"2026-11-26T00:00:00.000Z"}`)
@@ -212,7 +234,7 @@ func TestOnceLlevaLosPedidosPendientesAlERPComoBorradores(t *testing.T) {
 	if err := a.once(context.Background(), false); err != nil {
 		t.Fatal(err)
 	}
-	// El primer ciclo y el segundo ven los mismos pedidos pendientes (aún no hay confirmación): no duplica.
+	// El segundo ciclo ya no ve pedidos pendientes: nada nuevo, nada duplicado.
 	if err := a.once(context.Background(), false); err != nil {
 		t.Fatal(err)
 	}
@@ -221,10 +243,19 @@ func TestOnceLlevaLosPedidosPendientesAlERPComoBorradores(t *testing.T) {
 		t.Fatalf("borradores = %+v, quiero 1 (el del cliente que existe) sin duplicar", drafts)
 	}
 	c.mu.Lock()
-	gets := c.orderGets
-	c.mu.Unlock()
-	if gets < 2 {
-		t.Fatalf("consultas de pedidos = %d, quiero una por ciclo", gets)
+	defer c.mu.Unlock()
+	if c.orderGets < 2 {
+		t.Fatalf("consultas de pedidos = %d, quiero una por ciclo", c.orderGets)
+	}
+	// El pedido bueno se confirmó con la referencia del borrador; el del cliente inexistente se informó como error.
+	if got := c.confirmed["11111111-1111-4111-8111-111111111111"]; got != drafts[0].Reference {
+		t.Fatalf("confirmado con %q, la referencia del borrador es %q", got, drafts[0].Reference)
+	}
+	if got := c.failed["22222222-2222-4222-8222-222222222222"]; !strings.Contains(got, "NO-EXISTE") {
+		t.Fatalf("motivo informado = %q, quiero que nombre al cliente inexistente", got)
+	}
+	if len(c.confirmed) != 1 || len(c.failed) != 1 {
+		t.Fatalf("confirmados = %v, fallidos = %v", c.confirmed, c.failed)
 	}
 }
 

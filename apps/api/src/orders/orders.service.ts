@@ -8,7 +8,9 @@ import {
 import type {
   ConfirmOrderResult,
   CreateOrderInput,
+  FailOrderResult,
   OrderStatus,
+  RetryOrderResult,
   WebOrder,
 } from "@erp-web-bridge/shared-types";
 import { DatabaseService } from "../database/database.module";
@@ -313,6 +315,115 @@ export class OrdersService {
           message: "Esa referencia del ERP ya pertenece a otro pedido",
         });
       }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * El agente informa que el ERP NO puede aceptar el pedido y que reintentar no lo arregla (cliente
+   * o producto inexistente o inactivo en el ERP...). Los fallos transitorios (red, ERP caído) no se
+   * informan: el agente reintenta solo y el pedido sigue `pending_sync`.
+   *  - pendiente → `error` con el motivo (una sola vez; deja una fila `error` en sync_logs);
+   *  - ya en `error` → 200 `duplicate: true`, sin cambiar nada (se conserva el primer motivo);
+   *  - cualquier otro estado (ya confirmado, anulado...) → 409.
+   * El personal lo devuelve a la cola con `retry`.
+   */
+  async fail(orgId: string, orderId: string, detail: string): Promise<FailOrderResult> {
+    const client = await this.db.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const order = (
+        await client.query<{ status: OrderStatus; error_detail: string | null }>(
+          `SELECT status, error_detail FROM public.web_orders
+            WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+          [orderId, orgId],
+        )
+      ).rows[0];
+      if (!order) throw new NotFoundException("Pedido no encontrado");
+
+      if (order.status === "pending_sync") {
+        await client.query(
+          `UPDATE public.web_orders SET status = 'error', error_detail = $3
+            WHERE id = $1 AND org_id = $2`,
+          [orderId, orgId, detail],
+        );
+        await client.query(
+          `INSERT INTO public.sync_logs (org_id, direction, entity, records_processed, status, error_detail)
+           VALUES ($1, 'cloud_to_erp', 'orders', 0, 'error', $2)`,
+          [orgId, `Pedido ${orderId}: ${detail}`.slice(0, 1500)],
+        );
+        await client.query("COMMIT");
+        return { id: orderId, status: "error", error_detail: detail, duplicate: false };
+      }
+      if (order.status === "error") {
+        await client.query("COMMIT");
+        return { id: orderId, status: "error", error_detail: order.error_detail, duplicate: true };
+      }
+      throw new ConflictException({
+        code: "order_not_failable",
+        message: `Un pedido en estado ${order.status} no se puede marcar con error`,
+        status: order.status,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * El personal (owner, admin o staff) devuelve a la cola un pedido en `error`, p. ej. tras dar de
+   * alta en el ERP el cliente que faltaba. Pasa a `pending_sync` y se borra el motivo; el agente lo
+   * recoge en su próximo ciclo. Ya pendiente → 200 `changed: false`; cualquier otro estado → 409.
+   * No se vuelve a validar el crédito: lo decide el personal que lo reintenta.
+   */
+  async retry(orgId: string, userId: string, orderId: string): Promise<RetryOrderResult> {
+    const member = await this.db.withUser(userId, async (client) => {
+      const res = await client.query<{ role: string }>(
+        "SELECT role FROM public.org_members WHERE org_id = $1 AND user_id = $2",
+        [orgId, userId],
+      );
+      return res.rows[0];
+    });
+    if (!member) throw new NotFoundException("Organización no encontrada");
+    if (member.role === "customer") {
+      throw new ForbiddenException("Solo el personal de la organización puede reintentar pedidos");
+    }
+
+    const client = await this.db.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const order = (
+        await client.query<{ status: OrderStatus }>(
+          "SELECT status FROM public.web_orders WHERE id = $1 AND org_id = $2 FOR UPDATE",
+          [orderId, orgId],
+        )
+      ).rows[0];
+      if (!order) throw new NotFoundException("Pedido no encontrado");
+
+      if (order.status === "error") {
+        await client.query(
+          `UPDATE public.web_orders SET status = 'pending_sync', error_detail = NULL
+            WHERE id = $1 AND org_id = $2`,
+          [orderId, orgId],
+        );
+        await client.query("COMMIT");
+        return { id: orderId, status: "pending_sync", changed: true };
+      }
+      if (order.status === "pending_sync") {
+        await client.query("COMMIT");
+        return { id: orderId, status: "pending_sync", changed: false };
+      }
+      throw new ConflictException({
+        code: "order_not_retryable",
+        message: `Un pedido en estado ${order.status} no se puede reintentar`,
+        status: order.status,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => undefined);
       throw err;
     } finally {
       client.release();

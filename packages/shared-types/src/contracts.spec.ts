@@ -2,6 +2,9 @@ import {
   confirmOrderInputSchema,
   createOrderInputSchema,
   customerSchema,
+  failOrderInputSchema,
+  failOrderResultSchema,
+  ORDER_ERROR_DETAIL_MAX,
   EXCHANGE_RATE_MAX,
   ORDER_MAX_LINES,
   ORDER_MAX_QUANTITY,
@@ -393,5 +396,36 @@ describe("confirmacion de pedidos y consulta de pendientes", () => {
     for (const bad of [{ limit: "0" }, { limit: "501" }, { limit: "x" }, { otro: "1" }]) {
       expect(pendingOrdersQuerySchema.safeParse(bad).success).toBe(false);
     }
+  });
+});
+
+describe("fallo permanente de un pedido", () => {
+  it("el motivo es obligatorio, se recorta y admite hasta ORDER_ERROR_DETAIL_MAX caracteres", () => {
+    expect(failOrderInputSchema.parse({ error_detail: "  el cliente no existe  " })).toEqual({
+      error_detail: "el cliente no existe",
+    });
+    expect(
+      failOrderInputSchema.safeParse({ error_detail: "x".repeat(ORDER_ERROR_DETAIL_MAX) }).success,
+    ).toBe(true);
+    for (const bad of [
+      {},
+      { error_detail: " " },
+      { error_detail: "x".repeat(ORDER_ERROR_DETAIL_MAX + 1) },
+      { error_detail: "ok", status: "approved" },
+      { error_detail: 5 },
+    ]) {
+      expect(failOrderInputSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("la respuesta lleva el estado y si ya estaba en error", () => {
+    const ok = {
+      id: "6f1c2c1e-6f0e-4f56-9d0b-2c7f2a1b9a10",
+      status: "error",
+      error_detail: "x",
+      duplicate: false,
+    };
+    expect(failOrderResultSchema.safeParse(ok).success).toBe(true);
+    expect(failOrderResultSchema.safeParse({ ...ok, status: "otro" }).success).toBe(false);
   });
 });

@@ -86,6 +86,8 @@ describe("documentación OpenAPI", () => {
         "POST /v1/orgs/{orgId}/orders",
         "GET /v1/orders/pending",
         "POST /v1/orders/{orderId}/confirm",
+        "POST /v1/orders/{orderId}/fail",
+        "POST /v1/orgs/{orgId}/orders/{orderId}/retry",
       ].sort(),
     );
   });
@@ -109,11 +111,13 @@ describe("documentación OpenAPI", () => {
       "/v1/agent/heartbeat",
       "/v1/orders/pending",
       "/v1/orders/{orderId}/confirm",
+      "/v1/orders/{orderId}/fail",
     ];
     const user = [
       "/v1/orgs/{orgId}/exchange-rate",
       "/v1/orgs/{orgId}/exchange-rate/history",
       "/v1/orgs/{orgId}/orders",
+      "/v1/orgs/{orgId}/orders/{orderId}/retry",
     ];
     for (const [path, methods] of Object.entries(doc.paths)) {
       for (const op of Object.values(methods)) {

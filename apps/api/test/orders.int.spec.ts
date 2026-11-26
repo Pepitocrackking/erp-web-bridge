@@ -597,4 +597,130 @@ describe("pedidos (Postgres real)", () => {
       expect((await dbOrders(a.orgId))[0]!.status).toBe("pending_sync");
     });
   });
+
+  describe("fallo permanente y reintento", () => {
+    const placed = async () =>
+      (await order([{ sku: "P1", quantity: 1 }]).expect(201)).body.id as string;
+    const fail = (key: string | undefined, orderId: string, body: unknown) => {
+      const req = http().post(`/v1/orders/${orderId}/fail`);
+      return (key ? req.set("x-api-key", key) : req).send(body as object);
+    };
+    const retry = (orgId: string, userId: string | undefined, orderId: string) => {
+      const req = http().post(`/v1/orgs/${orgId}/orders/${orderId}/retry`);
+      return userId ? req.set("Authorization", bearer(userId)) : req;
+    };
+    const errorLogs = async (orgId: string) =>
+      (
+        await pool.query(
+          "SELECT * FROM public.sync_logs WHERE org_id = $1 AND entity = 'orders' AND status = 'error'",
+          [orgId],
+        )
+      ).rows;
+
+    it("el agente marca el pedido con error y el motivo; sale de pendientes y queda en sync_logs", async () => {
+      const id = await placed();
+      const res = await fail(a.apiKey, id, {
+        error_detail: "  El cliente C9 no existe en el ERP ",
+      });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        id,
+        status: "error",
+        error_detail: "El cliente C9 no existe en el ERP",
+        duplicate: false,
+      });
+      expect(await dbOrders(a.orgId)).toMatchObject([
+        { status: "error", error_detail: "El cliente C9 no existe en el ERP" },
+      ]);
+      expect((await pending(a.apiKey).expect(200)).body.orders).toHaveLength(0);
+      const logs = await errorLogs(a.orgId);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({ direction: "cloud_to_erp", records_processed: 0 });
+      expect(logs[0].error_detail).toContain(id);
+    });
+
+    it("informar dos veces el mismo fallo no cambia nada y conserva el primer motivo", async () => {
+      const id = await placed();
+      await fail(a.apiKey, id, { error_detail: "primero" }).expect(200);
+      const second = await fail(a.apiKey, id, { error_detail: "segundo" }).expect(200);
+      expect(second.body).toEqual({
+        id,
+        status: "error",
+        error_detail: "primero",
+        duplicate: true,
+      });
+      expect((await dbOrders(a.orgId))[0]!.error_detail).toBe("primero");
+      expect(await errorLogs(a.orgId)).toHaveLength(1);
+    });
+
+    it("un pedido ya confirmado, anulado o aprobado no se puede marcar con error: 409", async () => {
+      for (const status of ["synced_to_erp", "approved", "rejected", "cancelled"]) {
+        const id = await placed();
+        await setStatus(id, status);
+        const res = await fail(a.apiKey, id, { error_detail: "x" }).expect(409);
+        expect(res.body.status).toBe(status);
+      }
+      expect((await dbOrders(a.orgId)).every((o) => o.error_detail === null)).toBe(true);
+      expect(await errorLogs(a.orgId)).toHaveLength(0);
+    });
+
+    it("valida el cuerpo, el id y la clave; y no cruza organizaciones", async () => {
+      const id = await placed();
+      for (const bad of [
+        {},
+        { error_detail: " " },
+        { error_detail: "x".repeat(1001) },
+        { error_detail: "x", status: "approved" },
+      ]) {
+        await fail(a.apiKey, id, bad).expect(400);
+      }
+      await fail(a.apiKey, "no-es-uuid", { error_detail: "x" }).expect(400);
+      await fail(a.apiKey, randomUUID(), { error_detail: "x" }).expect(404);
+      await fail(undefined, id, { error_detail: "x" }).expect(401);
+      await fail("falsa", id, { error_detail: "x" }).expect(401);
+      await fail(b.apiKey, id, { error_detail: "x" }).expect(404); // la clave de B no ve pedidos de A
+      expect((await dbOrders(a.orgId))[0]).toMatchObject({
+        status: "pending_sync",
+        error_detail: null,
+      });
+    });
+
+    it("el personal reintenta un pedido en error: vuelve a pendiente, sin motivo, y el agente lo recoge", async () => {
+      const id = await placed();
+      for (const staff of [staffA, adminA]) {
+        // Pendiente -> error (lo informa el agente) -> pendiente (lo reintenta el personal).
+        await fail(a.apiKey, id, { error_detail: "cliente inexistente" }).expect(200);
+        const res = await retry(a.orgId, staff, id).expect(200);
+        expect(res.body).toEqual({ id, status: "pending_sync", changed: true });
+        expect((await dbOrders(a.orgId))[0]).toMatchObject({
+          status: "pending_sync",
+          error_detail: null,
+        });
+        expect(
+          (await pending(a.apiKey).expect(200)).body.orders.map((o: { id: string }) => o.id),
+        ).toEqual([id]);
+      }
+    });
+
+    it("reintentar uno ya pendiente es inocuo (changed=false) y otros estados dan 409", async () => {
+      const id = await placed();
+      const res = await retry(a.orgId, adminA, id).expect(200);
+      expect(res.body).toEqual({ id, status: "pending_sync", changed: false });
+      for (const status of ["synced_to_erp", "approved", "rejected", "cancelled"]) {
+        await setStatus(id, status);
+        const r = await retry(a.orgId, adminA, id).expect(409);
+        expect(r.body.status).toBe(status);
+      }
+    });
+
+    it("un comprador no reintenta pedidos (403), un extraño recibe 404 y sin JWT 401", async () => {
+      const id = await placed();
+      await fail(a.apiKey, id, { error_detail: "x" }).expect(200);
+      await retry(a.orgId, cust.userId, id).expect(403);
+      await retry(a.orgId, adminB, id).expect(404); // el admin de B no es miembro de A
+      await retry(a.orgId, undefined, id).expect(401);
+      await retry(a.orgId, adminA, randomUUID()).expect(404);
+      expect((await dbOrders(a.orgId))[0]).toMatchObject({ status: "error", error_detail: "x" });
+    });
+  });
 });
