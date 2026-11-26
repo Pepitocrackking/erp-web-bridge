@@ -1,4 +1,4 @@
-import { formatBs, formatUsd, usdToBs } from "./index";
+import { formatBs, formatUsd, lineTotalUsd, sumUsd, usdToBs } from "./index";
 
 describe("usdToBs", () => {
   it("multiplica por la tasa y redondea a 2 decimales", () => {
@@ -42,5 +42,27 @@ describe("formateo", () => {
   it("formatBs usa Bs. y separadores venezolanos", () => {
     expect(formatBs(45.63)).toBe("Bs. 45,63");
     expect(formatBs(36_500_000)).toBe("Bs. 36.500.000,00");
+  });
+});
+
+describe("lineTotalUsd y sumUsd", () => {
+  it("multiplica precio por cantidad sin errores de coma flotante", () => {
+    expect(lineTotalUsd(0.1, 3)).toBe(0.3); // 0.1 * 3 = 0.30000000000000004
+    expect(lineTotalUsd(4.23, 10)).toBe(42.3);
+    expect(lineTotalUsd(19.99, 1_000_000)).toBe(19_990_000);
+  });
+
+  it("suma en centavos enteros", () => {
+    expect(sumUsd([0.1, 0.2])).toBe(0.3);
+    expect(sumUsd([])).toBe(0);
+    expect(sumUsd([1234.56, 0.44])).toBe(1235);
+  });
+
+  it("rechaza cantidades y precios no válidos", () => {
+    expect(() => lineTotalUsd(-1, 2)).toThrow(RangeError);
+    expect(() => lineTotalUsd(1, 0)).toThrow(RangeError);
+    expect(() => lineTotalUsd(1, 1.5)).toThrow(RangeError);
+    expect(() => lineTotalUsd(Number.NaN, 1)).toThrow(RangeError);
+    expect(() => sumUsd([1, Number.NaN])).toThrow(RangeError);
   });
 });

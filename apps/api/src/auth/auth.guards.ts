@@ -2,14 +2,13 @@ import {
   CanActivate,
   createParamDecorator,
   ExecutionContext,
-  Inject,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { APP_CONFIG, type AppConfig } from "../config";
 import { DatabaseService } from "../database/database.module";
 import { hashApiKey, hashesEqual } from "./api-key";
-import { JwtError, verifyHs256Jwt } from "./jwt";
+import { JwtError } from "./jwt";
+import { JwtVerifier } from "./jwt-verifier";
 
 /** Organización autenticada por x-api-key. El `orgId` solo sale de aquí, nunca del cuerpo. */
 export interface AgentContext {
@@ -56,16 +55,16 @@ export class ApiKeyGuard implements CanActivate {
 
 @Injectable()
 export class JwtGuard implements CanActivate {
-  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
+  constructor(private readonly verifier: JwtVerifier) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<AuthedRequest>();
     const authorization = req.headers.authorization;
     const match =
       typeof authorization === "string" ? /^Bearer ([^\s]+)$/.exec(authorization) : null;
     if (!match) throw new UnauthorizedException(DENIED);
     try {
-      const claims = verifyHs256Jwt(match[1] as string, this.config.jwtSecret);
+      const claims = await this.verifier.verify(match[1] as string);
       req.user = { userId: claims.sub };
       return true;
     } catch (err) {

@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { createHmac, generateKeyPairSync, sign as cryptoSign, type JsonWebKey } from "node:crypto";
 import { Controller, Get, UseGuards, type INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
@@ -12,6 +13,7 @@ import {
   type UserContext,
 } from "../src/auth/auth.guards";
 import { AuthModule } from "../src/auth/auth.module";
+import { JwksCache } from "../src/auth/jwks";
 import { DatabaseModule, DatabaseService } from "../src/database/database.module";
 import {
   cleanup,
@@ -53,6 +55,31 @@ class ProbeController {
   }
 }
 
+// Claves ES256 como las que publica Supabase Auth en su JWKS (el servidor real no hace falta).
+const esKey = generateKeyPairSync("ec", { namedCurve: "P-256" });
+const esKid = "kid-de-prueba";
+const jwks = {
+  keys: [
+    {
+      ...(esKey.publicKey.export({ format: "jwk" }) as JsonWebKey),
+      kid: esKid,
+      alg: "ES256",
+      use: "sig",
+    },
+  ],
+};
+
+function esToken(
+  claims: Record<string, unknown>,
+  header: Record<string, unknown> = { alg: "ES256", typ: "JWT", kid: esKid },
+  key = esKey.privateKey,
+) {
+  const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
+  const data = `${b64(header)}.${b64(claims)}`;
+  const sig = cryptoSign("sha256", Buffer.from(data), { key, dsaEncoding: "ieee-p1363" });
+  return `${data}.${sig.toString("base64url")}`;
+}
+
 describe("autenticación (Postgres real)", () => {
   let app: INestApplication;
   let pool: Pool;
@@ -73,7 +100,16 @@ describe("autenticación (Postgres real)", () => {
     const moduleRef = await Test.createTestingModule({
       imports: [DatabaseModule, AuthModule],
       controllers: [ProbeController],
-    }).compile();
+    })
+      .overrideProvider(JwksCache)
+      .useValue(
+        new JwksCache("http://jwks.test/keys", async () => ({
+          ok: true,
+          status: 200,
+          json: async () => jwks,
+        })),
+      )
+      .compile();
     app = moduleRef.createNestApplication();
     await app.init();
   });
@@ -173,6 +209,57 @@ describe("autenticación (Postgres real)", () => {
         .get("/t/agent")
         .set("Authorization", `Bearer ${userToken(userA)}`)
         .expect(401);
+    });
+  });
+
+  describe("JWT ES256 (el que emite Supabase Auth con claves asimétricas)", () => {
+    const exp = () => Math.floor(Date.now() / 1000) + 60;
+
+    it("acepta un token firmado con la clave del JWKS", async () => {
+      const token = esToken({ sub: userA, role: "authenticated", exp: exp() });
+      const res = await http().get("/t/me").set("Authorization", `Bearer ${token}`).expect(200);
+      expect(res.body).toEqual({ userId: userA });
+    });
+
+    it("rechaza firma ajena, kid desconocido, sin kid, vencido y rol anon", async () => {
+      const other = generateKeyPairSync("ec", { namedCurve: "P-256" });
+      const claims = { sub: userA, role: "authenticated", exp: exp() };
+      const bad = [
+        esToken(claims, undefined, other.privateKey),
+        esToken(claims, { alg: "ES256", typ: "JWT", kid: "no-existe" }),
+        esToken(claims, { alg: "ES256", typ: "JWT" }),
+        esToken({ ...claims, exp: Math.floor(Date.now() / 1000) - 5 }),
+        esToken({ ...claims, role: "anon" }),
+      ];
+      for (const token of bad) {
+        await http().get("/t/me").set("Authorization", `Bearer ${token}`).expect(401);
+      }
+    });
+
+    it("no se deja engañar con confusión de algoritmo", async () => {
+      const claims = { sub: userA, role: "authenticated", exp: exp() };
+      // HS256 firmado usando como "secreto" la clave pública del JWKS (ataque clásico).
+      const publicPem = esKey.publicKey.export({ type: "spki", format: "pem" }).toString();
+      const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
+      const data = `${b64({ alg: "HS256", typ: "JWT", kid: esKid })}.${b64(claims)}`;
+      const confused = `${data}.${createHmac("sha256", publicPem).update(data).digest("base64url")}`;
+      await http().get("/t/me").set("Authorization", `Bearer ${confused}`).expect(401);
+      // Un ES256 con encabezado alg=none o RS256 tampoco.
+      await http()
+        .get("/t/me")
+        .set("Authorization", `Bearer ${esToken(claims, { alg: "RS256", kid: esKid })}`)
+        .expect(401);
+      await http()
+        .get("/t/me")
+        .set("Authorization", `Bearer ${esToken(claims, { alg: "none", kid: esKid })}`)
+        .expect(401);
+    });
+
+    it("el HS256 con el secreto compartido sigue valiendo", async () => {
+      await http()
+        .get("/t/me")
+        .set("Authorization", `Bearer ${userToken(userA)}`)
+        .expect(200);
     });
   });
 

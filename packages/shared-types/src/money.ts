@@ -55,3 +55,24 @@ export function formatUsd(usd: number): string {
 export function formatBs(bs: number): string {
   return `Bs. ${formatNumber(bs)}`;
 }
+
+/** Centavos enteros de un importe en USD (con 2 decimales). */
+function toCents(usd: number): number {
+  if (!Number.isFinite(usd) || usd < 0 || usd > MAX_USD) {
+    throw new RangeError(`Importe USD no válido: ${usd}`);
+  }
+  return Math.round(usd * 100);
+}
+
+/** Total de una línea de pedido: precio unitario por cantidad entera, calculado en centavos. */
+export function lineTotalUsd(unitUsd: number, quantity: number): number {
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new RangeError(`Cantidad no válida: ${quantity}`);
+  }
+  return (toCents(unitUsd) * quantity) / 100;
+}
+
+/** Suma de importes en USD, en centavos enteros (sin acumular errores de coma flotante). */
+export function sumUsd(values: number[]): number {
+  return values.reduce((cents, v) => cents + toCents(v), 0) / 100;
+}

@@ -10,6 +10,7 @@ import {
 } from "../../lib/catalog";
 import { createClient } from "../../lib/supabase/server";
 import { signOut } from "../login/actions";
+import { CartLink } from "./cart-link";
 import { ProductCard } from "./product-card";
 
 export const metadata = { title: "Catálogo · ERP Web Bridge" };
@@ -39,6 +40,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
   // Sin empresa todavía: pedir acceso (o ver el estado de la solicitud).
   if (!membership) redirect("/acceso");
 
+  const buyer = membership.role === "customer";
   const [catalog, categories] = await Promise.all([
     fetchCatalog(supabase, membership, params),
     fetchCategories(supabase, membership.orgId),
@@ -54,6 +56,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
           </p>
         </div>
         <div className="flex items-center gap-4 text-sm">
+          {membership.role === "customer" && <CartLink userId={user.id} />}
           {(membership.role === "owner" || membership.role === "admin") && (
             <Link href="/admin/solicitudes" className="underline">
               Solicitudes de acceso
@@ -112,7 +115,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {catalog.items.map((item) => (
             <li key={item.id}>
-              <ProductCard item={item} />
+              <ProductCard item={item} buyerId={buyer ? user.id : undefined} />
             </li>
           ))}
         </ul>

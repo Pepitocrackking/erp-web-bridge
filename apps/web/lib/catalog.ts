@@ -118,6 +118,8 @@ export interface Membership {
   orgId: string;
   orgName: string;
   role: OrgRole;
+  /** Cliente del ERP al que está atado el comprador (null en el personal). */
+  customerId: string | null;
   rateBs: number;
 }
 
@@ -132,7 +134,7 @@ export async function fetchMembership(
 ): Promise<Membership | null> {
   const { data: member, error } = await supabase
     .from("org_members")
-    .select("org_id, role")
+    .select("org_id, role, customer_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: true })
     .limit(1)
@@ -150,6 +152,7 @@ export async function fetchMembership(
     orgId: org.id,
     orgName: org.name,
     role: member.role as OrgRole,
+    customerId: member.customer_id,
     rateBs: Number(org.exchange_rate_bs),
   };
 }

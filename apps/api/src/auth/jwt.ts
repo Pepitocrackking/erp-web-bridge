@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, verify, type KeyObject } from "node:crypto";
 
 export class JwtError extends Error {}
 
@@ -55,6 +55,11 @@ export function verifyHs256Jwt(
     throw new JwtError("firma inválida");
   }
 
+  return checkClaims(payloadB64, nowSeconds);
+}
+
+/** Valida las fechas y la identidad del payload ya autenticado por la firma. */
+function checkClaims(payloadB64: string, nowSeconds: number): JwtClaims {
   const claims = decodeJson(payloadB64);
   if (typeof claims.exp !== "number") throw new JwtError("token sin exp");
   if (claims.exp <= nowSeconds) throw new JwtError("token vencido");
@@ -66,4 +71,48 @@ export function verifyHs256Jwt(
   }
   if (claims.role !== "authenticated") throw new JwtError("rol no permitido");
   return claims as JwtClaims;
+}
+
+/** Encabezado del token (sin verificar nada): sirve para elegir cómo verificarlo. */
+export function decodeHeader(token: string): { alg?: unknown; kid?: unknown } {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new JwtError("token mal formado");
+  return decodeJson(parts[0] as string);
+}
+
+/**
+ * Verifica un JWT firmado con ES256 (ECDSA P-256 + SHA-256) con la clave pública indicada.
+ *
+ * Supabase Auth firma así las sesiones de usuario en el CLI reciente y en producción; la clave
+ * pública sale de su JWKS (ver `JwksCache`). Igual que con HS256, el algoritmo es fijo y se
+ * comprueban los mismos claims. La firma JWT es `r||s` de 64 bytes (no DER).
+ */
+export function verifyEs256Jwt(
+  token: string,
+  publicKey: KeyObject,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): JwtClaims {
+  const parts = token.split(".");
+  if (parts.length !== 3) throw new JwtError("token mal formado");
+  const [headerB64, payloadB64, signatureB64] = parts as [string, string, string];
+
+  if (decodeJson(headerB64).alg !== "ES256") throw new JwtError("algoritmo no permitido");
+  if (
+    publicKey.asymmetricKeyType !== "ec" ||
+    publicKey.asymmetricKeyDetails?.namedCurve !== "prime256v1"
+  ) {
+    throw new JwtError("clave no válida para ES256");
+  }
+  if (!SEGMENT.test(signatureB64)) throw new JwtError("token mal formado");
+  const signature = Buffer.from(signatureB64, "base64url");
+  if (signature.length !== 64) throw new JwtError("firma inválida");
+
+  const valid = verify(
+    "sha256",
+    Buffer.from(`${headerB64}.${payloadB64}`),
+    { key: publicKey, dsaEncoding: "ieee-p1363" },
+    signature,
+  );
+  if (!valid) throw new JwtError("firma inválida");
+  return checkClaims(payloadB64, nowSeconds);
 }

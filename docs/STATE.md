@@ -5,14 +5,21 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** 6.2 (registro de compradores con aprobación del admin).
-- **Estado de la fase:** en curso. Siguiente tarea: 6.3 (esfuerzo alto: límite de crédito y dinero).
+- **Última tarea completada:** 6.3 (carrito y checkout con límite de crédito).
+- **Estado de la fase:** en curso. Siguiente tarea: 6.4 (esfuerzo medio-alto: panel admin con Realtime).
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
 - **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
 - **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
 - **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.3 (para no rehacerlo)
+- **Corrección a la Fase 4:** el Auth de Supabase (CLI 3.4 y proyectos nuevos) firma los JWT de usuario con **ES256**, no HS256, y la API solo aceptaba HS256: con un login real daba 401 siempre (sus pruebas usaban tokens HS256 autofirmados). Ahora `apps/api/src/auth/` verifica ambos: `jwks.ts` (`JwksCache`: claves EC P-256 del JWKS, caché de 10 min, una descarga como máximo cada 30 s, una sola descarga en vuelo, copia vieja hasta 1 h si Auth cae), `jwt.ts` (`verifyEs256Jwt`, firma `r||s` de 64 bytes, `decodeHeader`), `jwt-verifier.ts` (`JwtVerifier` elige por `alg`; HS256 solo con el secreto, ES256 solo con claves del JWKS: sin confusión de algoritmo). `JwtGuard` ahora es asíncrono. Variables `SUPABASE_JWKS_URL` (por defecto el JWKS local) y `SUPABASE_JWT_ISSUER` (opcional). Tests: `jwt.spec`, `jwks.spec` y 4 de integración con un JWKS falso (API: 175 pruebas).
+- `shared-types/money.ts`: `lineTotalUsd` y `sumUsd` (centavos enteros) además de `usdToBs`. 100 pruebas.
+- Web: el carrito vive en `localStorage` (`erpwb.cart.v1.<userId>`, solo SKU y cantidad; `lib/cart.ts`, `lib/use-cart.ts`) y se **cotiza en el servidor** cada vez (`quoteCart` en `app/carrito/actions.ts` lee productos y crédito con el JWT del comprador bajo RLS; `lib/quote.ts` es la lógica pura). `placeOrder` (acción de servidor) llama a `POST /v1/orgs/:orgId/orders` con el JWT de la sesión, así que **no hace falta CORS**; la URL sale de `API_URL` (o `NEXT_PUBLIC_API_URL`). La API sigue siendo la autoridad (precios, total, crédito); la pantalla solo adelanta el aviso "supera tu crédito" y bloquea el botón. `lib/orders.ts` traduce los 422 (`credit_limit_exceeded`, productos no disponibles).
+- Solo los compradores (`role customer`) ven el botón "Agregar", el contador del carrito y `/carrito`; el personal no tiene carrito (pedidos hechos por el personal siguen en el backlog).
+- Playwright ahora levanta también la API (puerto 3001, compila con `pnpm --filter @erp-web-bridge/api... build`). E2E: `e2e/cart.spec.ts` (5 pruebas, incluida la API real que responde 422 y no crea nada). Total E2E: 24. Un pedido de prueba consume crédito del cliente C00001 hasta el siguiente `pnpm db:reset`.
 
 ### Hecho en la 6.2 (para no rehacerlo)
 - Migración `..0700_access_requests.sql`: tabla `customer_access_requests` (solo lectura por RLS: el solicitante ve la suya, los owner/admin las de su empresa) y 3 funciones `SECURITY DEFINER` solo para `authenticated`: `request_customer_access(slug, rif, razón social)`, `approve_access_request(id, customer_id?)` (sin `customer_id`, ata al único cliente activo con el mismo RIF normalizado), `reject_access_request(id, nota)`. Los errores son códigos en el mensaje (`org_not_found`, `already_member`, `no_matching_customer`, `ambiguous_customer`, `forbidden`...); la web los traduce en `lib/access.ts`. 13 pruebas nuevas en `rls.test.mjs` (ahora 46); **no dependen de que la base esté limpia**.
@@ -136,4 +143,4 @@ Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 en curso: tareas 6.1 y 6.2 hechas (19 E2E, 24 pruebas de web, 97 de shared-types, 46 de RLS, 156 de la API en verde).
+2026-11-26. Fase 6 en curso: tareas 6.1 a 6.3 hechas (24 E2E, 39 pruebas de web, 100 de shared-types, 46 de RLS, 175 de la API en verde).

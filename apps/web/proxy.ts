@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabaseEnv } from "./lib/supabase/env";
 
 /** Rutas que exigen sesión. Todo lo demás (portada, login) es público. */
-const PROTECTED_PREFIXES = ["/catalogo", "/acceso", "/admin"];
+const PROTECTED_PREFIXES = ["/catalogo", "/carrito", "/acceso", "/admin"];
 
 /**
  * Refresca la sesión de Supabase en cada petición (los Server Components no pueden escribir

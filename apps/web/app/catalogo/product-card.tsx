@@ -1,5 +1,6 @@
 import { formatBs, formatUsd } from "@erp-web-bridge/shared-types";
 import type { CatalogItem } from "../../lib/catalog";
+import { AddToCart } from "./add-to-cart";
 
 const STOCK_STYLES = {
   ok: "bg-emerald-100 text-emerald-800",
@@ -7,7 +8,8 @@ const STOCK_STYLES = {
   out: "bg-slate-200 text-slate-600",
 } as const;
 
-export function ProductCard({ item }: { item: CatalogItem }) {
+/** `buyerId`: solo los compradores ven el botón de agregar al carrito. */
+export function ProductCard({ item, buyerId }: { item: CatalogItem; buyerId?: string }) {
   return (
     <article
       aria-label={item.name}
@@ -50,6 +52,14 @@ export function ProductCard({ item }: { item: CatalogItem }) {
             {item.stock.text}
           </span>
         </div>
+        {buyerId && (
+          <AddToCart
+            userId={buyerId}
+            sku={item.sku}
+            name={item.name}
+            disabled={item.stock.level === "out"}
+          />
+        )}
       </div>
     </article>
   );
