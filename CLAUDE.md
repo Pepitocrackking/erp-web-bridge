@@ -20,16 +20,16 @@ El plan completo, con tareas y criterios de aceptación por fase, está en `docs
 - **Una rama y un PR por fase:** `phase-N/<slug>`. Nunca se hace push directo a `main`.
 - Las tareas se ejecutan una por una con la skill `next-task` y se marcan en `docs/ROADMAP.md`.
 - **Nada se declara terminado ni se pushea sin pasar `phase-gate`:** verificación completa con datos reales y evidencia fresca (salida real de comandos), nunca "debería funcionar".
-- El PR lo abre `phase-gate`, pero **solo el usuario hace el merge** (o lo pide explícitamente).
-- Antes de que el usuario haga `/clear`, ejecutar `checkpoint`. Después de un `/clear`, ejecutar `resume`.
+- `phase-gate` abre el PR y, **solo si todo el Gate pasó** (y el CI en verde, cuando exista), **hace el merge él mismo** con `gh pr merge --merge`. El usuario lo autorizó el 2026-11-26 y solo revisa el resumen de cada fase. Si algo falla, no hay push ni merge.
+- Antes de que el usuario haga `/clear`, ejecutar `guardar-estado`. Después de un `/clear`, ejecutar `retomar`.
 
 ## Skills del proyecto (`.claude/skills/`)
 | Skill | Cuándo |
 |---|---|
 | `next-task` | Avanzar a la siguiente tarea pendiente de la fase actual |
 | `phase-gate` | Al terminar todas las tareas de una fase: verificar, pushear y abrir PR |
-| `checkpoint` | Guardar el estado en `docs/STATE.md` antes de `/clear` |
-| `resume` | Retomar tras `/clear` o en una sesión nueva |
+| `guardar-estado` | Guardar el estado en `docs/STATE.md` antes de `/clear` |
+| `retomar` | Retomar tras `/clear` o en una sesión nueva |
 
 ## Convenciones
 - Comunicación, documentación y commits en español; identificadores de código en inglés.

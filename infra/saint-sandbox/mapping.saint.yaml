@@ -1,0 +1,57 @@
+# Mapeo configurable de Saint Enterprise a los campos canónicos del puente.
+#
+# ADVERTENCIA: los nombres de tablas y columnas son de MEJOR ESFUERZO según el conocimiento
+# público de Saint Enterprise y todavía no se han validado contra una base real. Varían entre
+# versiones. Si en un cliente real algo se llama distinto, se cambia AQUÍ, nunca en el código
+# del agente.
+#
+# Convenciones:
+#   - `column` es el nombre en Saint; la clave de la izquierda es el campo canónico.
+#   - `filter` es una condición SQL opcional que se añade al WHERE de la lectura.
+#   - Los precios y costos de Saint se asumen en USD (el motor multimoneda calcula Bs en la nube).
+
+version: 1
+erp: saint
+
+# Producto -> products (nube)
+product:
+  table: SAPROD
+  key: sku
+  fields:
+    sku:       { column: CodProd }
+    name:      { column: Descrip }
+    category:  { column: CodInst, lookup: { table: SAINSTA, key: CodInst, label: Descrip } }
+    cost_usd:  { column: Costo }
+    price_usd: { column: Precio1 }      # lista de precios 1 (detal). Precio2 y Precio3 quedan disponibles.
+    stock:     { column: Existen }      # existencia total; el detalle por depósito está en `stock_by_depot`
+    active:    { column: Activo, true_when: 1 }
+  # Listas de precio alternativas para clientes B2B (uso futuro).
+  price_lists:
+    list1: Precio1
+    list2: Precio2
+    list3: Precio3
+  filter: null
+
+# Existencia por depósito (informativo; el stock canónico del MVP es la suma)
+stock_by_depot:
+  table: SAEXIS
+  fields:
+    sku:      { column: CodProd }
+    depot:    { column: CodUbic, lookup: { table: SADEPO, key: CodUbic, label: Descrip } }
+    quantity: { column: Existen }
+
+# Cliente -> b2b_customers (nube)
+customer:
+  table: SACLIE
+  key: customer_code
+  fields:
+    customer_code:    { column: CodClie }
+    business_name:    { column: Descrip }
+    tax_id:           { column: ID3 }          # RIF
+    credit_limit_usd: { column: LimiteCred }
+    current_debt_usd: { column: Saldo }
+    active:           { column: Activo, true_when: 1 }
+  filter: null
+
+# Campos que entran al hash de sincronización diferencial (manual del proyecto, sección 2.2).
+sync_hash_fields: [sku, price_usd, stock, name]

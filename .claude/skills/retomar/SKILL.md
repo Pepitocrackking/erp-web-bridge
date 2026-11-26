@@ -1,9 +1,9 @@
 ---
-name: resume
+name: retomar
 description: Retoma el trabajo en erp-web-bridge tras un /clear o en una sesión nueva. Úsala cuando el usuario diga "continúa", "retoma", "¿dónde íbamos?" o empiece una sesión sin contexto. Reconstruye la posición desde docs/STATE.md, el ROADMAP y git, detecta incoherencias y propone la siguiente acción.
 ---
 
-# resume
+# retomar
 
 Reconstruye dónde está el proyecto leyendo el repo, no la memoria.
 

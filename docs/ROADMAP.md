@@ -19,14 +19,14 @@ Rama: `phase-0/bootstrap`
 - [x] **0.2** Manual del proyecto copiado a `docs/manual-proyecto-1.md`.
 - [x] **0.3** `CLAUDE.md` con decisiones, flujo de trabajo e importación de `docs/STATE.md`.
 - [x] **0.4** `docs/ROADMAP.md` y `docs/STATE.md`.
-- [x] **0.5** Skills `next-task`, `phase-gate`, `checkpoint` y `resume` en `.claude/skills/`.
+- [x] **0.5** Skills `next-task`, `phase-gate`, `guardar-estado` y `retomar` en `.claude/skills/`.
 - [x] **0.6** Plantilla de PR y script `scripts/validate-workflow.sh` que valida skills, ROADMAP y STATE.
 
 ### Gate 0
 - [x] `bash scripts/validate-workflow.sh` termina con código 0.
 - [x] Las 4 skills tienen frontmatter válido (`name` igual al nombre de su carpeta y `description` no vacía).
 - [x] PR de `phase-0/bootstrap` abierto contra `main` con la evidencia en el cuerpo (PR #1).
-- [ ] Tras el merge, en una sesión nueva `/resume` aparece como skill disponible (lo confirma el usuario).
+- [ ] Tras el merge, en una sesión nueva `/retomar` aparece como skill disponible (lo confirma el usuario).
 
 ---
 
@@ -35,18 +35,18 @@ Rama: `phase-1/saint-sandbox`
 
 Objetivo: un SQL Server en contenedor con las tablas básicas de Saint y datos realistas, para desarrollar y probar el `SaintAdapter` sin un Saint real.
 
-- [ ] **1.1** `docker-compose.yml` con SQL Server 2022, healthcheck, volumen y `.env.example` (sin contraseñas reales).
-- [ ] **1.2** Script de esquema `infra/saint-sandbox/init/01-schema.sql`: base `SAINT_DEMO` con `SAPROD` (código, descripción, categoría, costo, precios 1 a 3, existencia, activo), `SAEXIS` (existencia por depósito), `SADEPO`, `SAINSTA` y `SACLIE` (código, nombre, RIF, límite de crédito, saldo).
-- [ ] **1.3** Seed determinista `02-seed.sql`: al menos 300 productos en 8 o más categorías, 3 depósitos y 40 o más clientes con límite y saldo. Datos de una distribuidora venezolana verosímil.
-- [ ] **1.4** `infra/saint-sandbox/mapping.saint.yaml`: mapeo configurable de columnas de Saint a campos canónicos (`sku`, `name`, `category`, `cost_usd`, `price_usd`, `stock`, `active`).
-- [ ] **1.5** Scripts `scripts/saint-sandbox.sh` y `.ps1` con `up`, `reset` y `mutate` (cambia precio y stock de productos concretos para simular actividad del ERP).
-- [ ] **1.6** `docs/saint-sandbox.md`: cómo levantarlo, qué tablas hay y la advertencia de que el esquema es de mejor esfuerzo y debe validarse contra una base real.
+- [x] **1.1** `docker-compose.yml` con SQL Server 2022, healthcheck, volumen y `.env.example` (sin contraseñas reales).
+- [x] **1.2** Script de esquema `infra/saint-sandbox/init/01-schema.sql`: base `SAINT_DEMO` con `SAPROD` (código, descripción, categoría, costo, precios 1 a 3, existencia, activo), `SAEXIS` (existencia por depósito), `SADEPO`, `SAINSTA` y `SACLIE` (código, nombre, RIF, límite de crédito, saldo).
+- [x] **1.3** Seed determinista `02-seed.sql`: al menos 300 productos en 8 o más categorías, 3 depósitos y 40 o más clientes con límite y saldo. Datos de una distribuidora venezolana verosímil.
+- [x] **1.4** `infra/saint-sandbox/mapping.saint.yaml`: mapeo configurable de columnas de Saint a campos canónicos (`sku`, `name`, `category`, `cost_usd`, `price_usd`, `stock`, `active`).
+- [x] **1.5** Scripts `scripts/saint-sandbox.sh` y `.ps1` con `up`, `reset` y `mutate` (cambia precio y stock de productos concretos para simular actividad del ERP).
+- [x] **1.6** `docs/saint-sandbox.md`: cómo levantarlo, qué tablas hay y la advertencia de que el esquema es de mejor esfuerzo y debe validarse contra una base real.
 
 ### Gate 1
-- [ ] Desde cero (`down -v` y luego `up`) el contenedor queda `healthy` en menos de 90 s.
-- [ ] Consultas reales devuelven: al menos 300 filas en `SAPROD`, 3 en `SADEPO`, al menos 40 en `SACLIE`, y `SAEXIS` consistente con la suma de existencias de `SAPROD`.
-- [ ] `mutate` cambia las filas esperadas y `reset` restaura el estado original (se comprueba con un checksum de la tabla).
-- [ ] Volver a ejecutar el init no duplica datos (idempotencia).
+- [x] Desde cero (`down -v` y luego `up`) el contenedor queda `healthy` en menos de 90 s.
+- [x] Consultas reales devuelven: al menos 300 filas en `SAPROD`, 3 en `SADEPO`, al menos 40 en `SACLIE`, y `SAEXIS` consistente con la suma de existencias de `SAPROD`.
+- [x] `mutate` cambia las filas esperadas y `reset` restaura el estado original (se comprueba con un checksum de la tabla).
+- [x] Volver a ejecutar el init no duplica datos (idempotencia).
 
 ---
 

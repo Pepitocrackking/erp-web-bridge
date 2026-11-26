@@ -1,0 +1,52 @@
+# Sandbox de Saint Enterprise: SQL Server 2022 con las tablas básicas de Saint.
+# Uso: cp .env.example .env && docker compose up -d
+# Solo para desarrollo y pruebas; los datos son ficticios.
+name: erp-web-bridge
+
+services:
+  saint-sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: saint-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?Falta MSSQL_SA_PASSWORD, copia .env.example a .env}"
+      MSSQL_PID: Developer
+    ports:
+      - "${MSSQL_HOST_PORT:-14330}:1433"
+    volumes:
+      - saint-sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    restart: unless-stopped
+
+  # Ejecuta infra/saint-sandbox/init/*.sql en orden alfabético. Los scripts deben ser idempotentes.
+  saint-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: saint-init
+    depends_on:
+      saint-sql:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+    volumes:
+      - ./infra/saint-sandbox/init:/init:ro
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        found=0
+        for f in $$(ls /init/*.sql 2>/dev/null | sort); do
+          found=1
+          echo "[saint-init] $$f"
+          /opt/mssql-tools18/bin/sqlcmd -C -S saint-sql -U sa -P "$$MSSQL_SA_PASSWORD" -b -i "$$f"
+        done
+        [ "$$found" = 1 ] || echo "[saint-init] no hay scripts .sql en /init"
+        echo "[saint-init] listo"
+    restart: "no"
+
+volumes:
+  saint-sql-data:

@@ -1,9 +1,9 @@
 ---
-name: checkpoint
-description: Guarda el estado del proyecto erp-web-bridge en docs/STATE.md para que el usuario pueda hacer /clear sin perder contexto. Úsala cuando el usuario diga "checkpoint", "voy a limpiar el contexto", "voy a hacer clear" o cuando la conversación sea muy larga. No hace push.
+name: guardar-estado
+description: Guarda el estado del proyecto erp-web-bridge en docs/STATE.md para que el usuario pueda hacer /clear sin perder contexto. Úsala cuando el usuario diga "guardar estado", "checkpoint", "voy a limpiar el contexto", "voy a hacer clear" o cuando la conversación sea muy larga. No hace push.
 ---
 
-# checkpoint
+# guardar-estado
 
 Convierte lo que sabes en este momento en texto que sobrevive a un `/clear`. Después de esto, la sesión siguiente debe poder continuar sin preguntar nada.
 
@@ -25,7 +25,7 @@ Convierte lo que sabes en este momento en texto que sobrevive a un `/clear`. Des
 4. **Comitea** el STATE.md (`docs(state): checkpoint`) con la identidad noreply:
    `git -c user.name="Orlando Guerra" -c user.email="361565448+Pepitocrackking@users.noreply.github.com" commit ...`
 5. **No hagas push.** El push solo ocurre en `phase-gate`, después de verificar.
-6. **Confirma** al usuario en pocas líneas: dónde quedó, cuál es la siguiente acción y que ya puede escribir `/clear`. Recuérdale que después use `resume`.
+6. **Confirma** al usuario en pocas líneas: dónde quedó, cuál es la siguiente acción y que ya puede escribir `/clear`. Recuérdale que después use `retomar`.
 
 ## Comprobación final
 

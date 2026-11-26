@@ -1,6 +1,6 @@
 ---
 name: phase-gate
-description: Compuerta de calidad al cerrar una fase de erp-web-bridge. Úsala cuando todas las tareas de la fase estén marcadas, o cuando el usuario pida "verificar la fase", "cerrar la fase" o "hacer push". Verifica al 100% con datos reales y evidencia fresca cada criterio del Gate. Solo si todo pasa, hace push de la rama y abre el PR. Si algo falla, no hace push.
+description: Compuerta de calidad al cerrar una fase de erp-web-bridge. Úsala cuando todas las tareas de la fase estén marcadas, o cuando el usuario pida "verificar la fase", "cerrar la fase" o "hacer push". Verifica al 100% con datos reales y evidencia fresca cada criterio del Gate. Solo si todo pasa, hace push de la rama, abre el PR, lo fusiona y deja el relevo escrito para la fase siguiente. Si algo falla, no hace push ni merge.
 ---
 
 # phase-gate
@@ -30,11 +30,14 @@ Nada sale de la rama sin pasar esta compuerta. La regla de hierro:
 7. **Marca el Gate** (`- [x]` en cada criterio), actualiza `docs/STATE.md` (fase completada y siguiente fase) y comitea la evidencia con la identidad noreply:
    `git -c user.name="Orlando Guerra" -c user.email="361565448+Pepitocrackking@users.noreply.github.com" commit ...`
 8. **Push y PR.** `git push -u origin <rama>` y luego `gh pr create --base main` con el título `Fase N: <nombre>`. El cuerpo sigue `.github/pull_request_template.md`: resumen, tabla de evidencia y qué viene después. Termina el cuerpo con la línea de atribución indicada por el entorno.
-9. **Detente.** Dile al usuario el enlace del PR y que el merge es suyo. **No hagas merge** salvo que lo pida de forma explícita. Sugiere ejecutar `checkpoint` y luego `/clear`.
+9. **Merge.** El usuario delegó el merge en esta skill (2026-11-26). Con el Gate completo en verde, y el CI en verde si ya existe (`gh pr checks <n>`), ejecuta `gh pr merge <n> --merge`. No uses `--admin` ni saltes checks fallidos. Si el CI falla, vuelve al paso 6.
 
 ## Después del merge
 
-Cuando el usuario confirme el merge: `git checkout main && git pull`, crea la rama de la siguiente fase (`phase-N+1/<slug>`), actualiza `docs/STATE.md` y sigue con `next-task`.
+1. `git checkout main && git pull`, y comprueba con `git log` que el merge está.
+2. Crea la rama de la siguiente fase (`phase-N+1/<slug>`).
+3. **Escribe el relevo en `docs/STATE.md`** para la fase siguiente: la tarea `N+1.1` con archivos, comandos y detalles técnicos que vayas a necesitar, más el hilo de contexto. Comitea en la rama nueva (sin push).
+4. Entrega al usuario **un resumen corto de la fase** (qué se hizo, evidencia clave, enlace al PR) y dile que ya puede escribir `/clear` y luego `/retomar`. Ese es el único momento en que se le pide algo.
 
 ## Señales de alarma: si piensas esto, detente
 
