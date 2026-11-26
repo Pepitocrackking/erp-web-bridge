@@ -916,13 +916,13 @@ describe("solicitudes de acceso de compradores", () => {
 });
 
 describe("panel en tiempo real", () => {
-  it("la publicación de Realtime incluye bitácora, pedidos y tasas, y no organizations", async () => {
+  it("la publicación de Realtime incluye productos, bitácora, pedidos y tasas, y no organizations", async () => {
     const r = await pool.query(
       `SELECT tablename FROM pg_publication_tables
         WHERE pubname = 'supabase_realtime' AND schemaname = 'public' ORDER BY tablename`,
     );
     const tables = r.rows.map((row) => row.tablename);
-    for (const t of ["exchange_rates", "sync_logs", "web_orders"]) {
+    for (const t of ["exchange_rates", "products", "sync_logs", "web_orders"]) {
       assert.ok(tables.includes(t), `${t} debe estar publicada`);
     }
     assert.ok(!tables.includes("organizations"), "organizations no se publica");

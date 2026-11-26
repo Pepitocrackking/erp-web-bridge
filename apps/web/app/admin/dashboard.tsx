@@ -20,7 +20,7 @@ import {
   type RateEntry,
   type SyncLogRow,
 } from "../../lib/admin";
-import { createClient } from "../../lib/supabase/client";
+import { authorizeRealtime, createClient } from "../../lib/supabase/client";
 import { RateForm } from "./rate-form";
 
 export interface DashboardData {
@@ -108,39 +108,45 @@ export function AdminDashboard({
   // Supabase Realtime: cambios de la bitácora, los pedidos y las tasas de esta organización.
   useEffect(() => {
     const filter = `org_id=eq.${orgId}`;
-    const channel = supabase
-      .channel(`admin-${orgId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "sync_logs", filter },
-        (payload) => {
-          const row = toSyncLogRow(payload.new as Parameters<typeof toSyncLogRow>[0]);
-          setLogs((list) => mergeById(list, row, PANEL_LIST_SIZE));
-          void refreshOrg(); // last_sync_at cambió
-          if (row.entity === "customers") void refreshCustomers();
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "web_orders", filter },
-        (payload) => {
-          if (payload.eventType === "DELETE") return;
-          const row = toOrderRow(payload.new as Parameters<typeof toOrderRow>[0]);
-          setOrders((list) => mergeById(list, row, PANEL_LIST_SIZE));
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "exchange_rates", filter },
-        (payload) => {
-          const entry = toRateEntry(payload.new as Parameters<typeof toRateEntry>[0]);
-          setRates((list) => mergeById(list, entry, PANEL_LIST_SIZE));
-          setOrg((o) => ({ ...o, rateBs: entry.rateBs }));
-        },
-      )
-      .subscribe((status) => setLive(status === "SUBSCRIBED"));
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    void authorizeRealtime(supabase).then((authorized) => {
+      if (cancelled || !authorized) return;
+      channel = supabase
+        .channel(`admin-${orgId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "sync_logs", filter },
+          (payload) => {
+            const row = toSyncLogRow(payload.new as Parameters<typeof toSyncLogRow>[0]);
+            setLogs((list) => mergeById(list, row, PANEL_LIST_SIZE));
+            void refreshOrg(); // last_sync_at cambió
+            if (row.entity === "customers") void refreshCustomers();
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "web_orders", filter },
+          (payload) => {
+            if (payload.eventType === "DELETE") return;
+            const row = toOrderRow(payload.new as Parameters<typeof toOrderRow>[0]);
+            setOrders((list) => mergeById(list, row, PANEL_LIST_SIZE));
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "exchange_rates", filter },
+          (payload) => {
+            const entry = toRateEntry(payload.new as Parameters<typeof toRateEntry>[0]);
+            setRates((list) => mergeById(list, entry, PANEL_LIST_SIZE));
+            setOrg((o) => ({ ...o, rateBs: entry.rateBs }));
+          },
+        )
+        .subscribe((status) => setLive(status === "SUBSCRIBED"));
+    });
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [supabase, orgId, refreshOrg, refreshCustomers]);
 

@@ -8,6 +8,7 @@ import {
   fetchSyncLogs,
 } from "../../lib/admin";
 import { fetchMembership } from "../../lib/catalog";
+import { simulatorConfig } from "../../lib/simulator";
 import { createClient } from "../../lib/supabase/server";
 import { signOut } from "../login/actions";
 import { AdminDashboard } from "./dashboard";
@@ -26,6 +27,13 @@ export default async function AdminPage() {
   if (membership.role === "customer") redirect("/catalogo");
   const isAdmin = membership.role === "owner" || membership.role === "admin";
 
+  const config = simulatorConfig();
+  const { data: slugRow } =
+    isAdmin && config
+      ? await supabase.from("organizations").select("slug").eq("id", membership.orgId).single()
+      : { data: null };
+  const showSimulator = config !== null && slugRow?.slug === config.orgSlug;
+
   const [org, rates, customers, orders, logs] = await Promise.all([
     fetchOrgStatus(supabase, membership.orgId),
     fetchRates(supabase, membership.orgId),
@@ -42,6 +50,11 @@ export default async function AdminPage() {
           <p className="text-sm text-slate-600">{membership.orgName}</p>
         </div>
         <nav aria-label="Navegación del panel" className="flex items-center gap-4 text-sm">
+          {showSimulator && (
+            <Link href="/admin/simulador" className="underline">
+              Simulador de ERP
+            </Link>
+          )}
           {isAdmin && (
             <Link href="/admin/solicitudes" className="underline">
               Solicitudes de acceso

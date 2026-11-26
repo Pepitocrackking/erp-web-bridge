@@ -5,14 +5,22 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** 6.5 ("Entrar como Administrador Demo").
-- **Estado de la fase:** en curso. Siguiente tarea: 6.6 (esfuerzo medio-alto: simulador de ERP). Después 6.7 (medio) y el Gate 6.
+- **Última tarea completada:** 6.6 (simulador de ERP).
+- **Estado de la fase:** en curso. Siguiente tarea: 6.7 (esfuerzo medio: PWA instalable con catálogo en caché). Después el Gate 6 (`phase-gate`).
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
 - **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
 - **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
 - **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.6 (para no rehacerlo)
+- Migración `..0900_realtime_products.sql`: `products` entra en la publicación de Realtime (RLS decide qué eventos recibe cada usuario). La prueba de RLS de la publicación ahora exige `products`.
+- **Catálogo en vivo:** `app/catalogo/catalog-live.tsx` se suscribe a `products` y a `exchange_rates` de la organización y llama a `router.refresh()` con 400 ms de espera; **no pinta con el contenido del evento**, siempre relee con RLS. Atributo `data-testid="catalog-live"` con `data-state="live|connecting"` (los E2E esperan "live").
+- **Trampa importante de Realtime:** hay que fijar el JWT con `authorizeRealtime(supabase)` (`lib/supabase/client.ts`: lee la sesión y llama a `realtime.setAuth`) **antes de `.subscribe()`**. Si el canal se une con la clave anon, Realtime evalúa la suscripción con el rol `anon` y falla con `invalid column for filter org_id` (mensaje `system` en el websocket) aunque el callback diga `SUBSCRIBED`. Ya lo usan el catálogo y el panel.
+- **Simulador** `/admin/simulador` (solo owner/admin de la organización demo): `lib/simulator.ts` (diff por contenido `changedRows`, validación `rowErrors`, `simulatorConfig`), `simulador/simulator.tsx` (tabla editable con filas pendientes marcadas, agregar producto, "Sincronizar con la nube"), `simulador/actions.ts` (`syncSimulatedInventory`: comprueba rol y que la organización sea `SIMULATOR_ORG_SLUG` —por defecto `demo-saint`—, calcula `sync_hash` con `productSyncHash` y envía `POST /v1/sync/products` con la clave de agente **solo en el servidor**; máx. 200 cambios por envío). Clave: `SIMULATOR_API_KEY`, o la del seed si `DEMO_MODE=true`. El panel `/admin` muestra el enlace solo si está habilitado.
+- E2E `e2e/simulator.spec.ts` (4 pruebas, **escenario del Gate**: un admin edita precio y existencia en el simulador, sincroniza y otro navegador del personal ve el precio nuevo en USD y Bs, y el de un comprador la existencia nueva, sin recargar; restauran el inventario en un `finally`). Total E2E: **38**; 70 pruebas unitarias de web.
+- Arreglo de paso: el helper de login E2E usa `exact: true` para "Entrar" (desde la 6.5 hay dos botones que empiezan así en `/login`).
 
 ### Hecho en la 6.5 (para no rehacerlo)
 - `lib/demo.ts` (`isDemoMode`, `demoAdminCredentials`): solo con `DEMO_MODE=true` **exacto** (variable de servidor, sin `NEXT_PUBLIC_`). `signInDemo` (en `app/login/actions.ts`) la vuelve a comprobar aunque el botón esté oculto, inicia sesión con `DEMO_ADMIN_EMAIL`/`DEMO_ADMIN_PASSWORD` (por defecto el admin del seed) y manda a `/admin`. La página `/login` muestra el botón solo en modo demo.
@@ -155,4 +163,4 @@ Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 en curso: tareas 6.1 a 6.5 hechas (34 E2E, 60 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde).
+2026-11-26. Fase 6 en curso: tareas 6.1 a 6.6 hechas (38 E2E, 70 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde).

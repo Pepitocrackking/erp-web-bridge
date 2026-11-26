@@ -22,7 +22,7 @@ export async function login(page: Page, email: string, password = PASSWORD) {
   await page.goto("/login");
   await page.getByLabel("Correo").fill(email);
   await page.getByLabel("Contraseña").fill(password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
 }
 
 export async function loginAndOpenCatalog(page: Page, email: string) {

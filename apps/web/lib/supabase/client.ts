@@ -13,3 +13,20 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
+
+/**
+ * Fija el JWT del usuario en Realtime ANTES de suscribirse. Si el canal se une primero con la clave
+ * anónima, Realtime evalúa la suscripción con el rol `anon` (sin permiso de lectura) y la rechaza
+ * con "invalid column for filter": el cliente aún no ha leído la sesión de las cookies.
+ * Devuelve false si no hay sesión (entonces no se debe suscribir).
+ */
+export async function authorizeRealtime(
+  supabase: ReturnType<typeof createClient>,
+): Promise<boolean> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return false;
+  await supabase.realtime.setAuth(session.access_token);
+  return true;
+}

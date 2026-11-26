@@ -11,6 +11,7 @@ import {
 import { createClient } from "../../lib/supabase/server";
 import { signOut } from "../login/actions";
 import { CartLink } from "./cart-link";
+import { CatalogLive } from "./catalog-live";
 import { ProductCard } from "./product-card";
 
 export const metadata = { title: "Catálogo · ERP Web Bridge" };
@@ -48,6 +49,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
 
   return (
     <main className="mx-auto max-w-6xl p-4 sm:p-8">
+      <CatalogLive orgId={membership.orgId} />
       <header className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold">{membership.orgName}</h1>
