@@ -40,7 +40,7 @@ Objetivo: un SQL Server en contenedor con las tablas básicas de Saint y datos r
 - [x] **1.3** Seed determinista `02-seed.sql`: al menos 300 productos en 8 o más categorías, 3 depósitos y 40 o más clientes con límite y saldo. Datos de una distribuidora venezolana verosímil.
 - [x] **1.4** `infra/saint-sandbox/mapping.saint.yaml`: mapeo configurable de columnas de Saint a campos canónicos (`sku`, `name`, `category`, `cost_usd`, `price_usd`, `stock`, `active`).
 - [x] **1.5** Scripts `scripts/saint-sandbox.sh` y `.ps1` con `up`, `reset` y `mutate` (cambia precio y stock de productos concretos para simular actividad del ERP).
-- [ ] **1.6** `docs/saint-sandbox.md`: cómo levantarlo, qué tablas hay y la advertencia de que el esquema es de mejor esfuerzo y debe validarse contra una base real.
+- [x] **1.6** `docs/saint-sandbox.md`: cómo levantarlo, qué tablas hay y la advertencia de que el esquema es de mejor esfuerzo y debe validarse contra una base real.
 
 ### Gate 1
 - [ ] Desde cero (`down -v` y luego `up`) el contenedor queda `healthy` en menos de 90 s.
