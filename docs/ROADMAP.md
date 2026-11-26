@@ -147,9 +147,9 @@ Rama: `phase-7/orders-to-erp`
 - [x] **7.4** El panel muestra el estado del pedido y el motivo de cualquier error.
 
 ### Gate 7
-- [ ] E2E real: pedido en la web, borrador en el sandbox, estado `synced_to_erp` en el panel.
-- [ ] La prueba de no escritura fiscal pasa.
-- [ ] Reintentar un pedido no crea un borrador duplicado.
+- [x] E2E real: pedido en la web, borrador en el sandbox, estado `synced_to_erp` en el panel.
+- [x] La prueba de no escritura fiscal pasa.
+- [x] Reintentar un pedido no crea un borrador duplicado.
 
 ---
 

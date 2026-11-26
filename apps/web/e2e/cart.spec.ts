@@ -17,7 +17,13 @@ async function addToCart(page: Page, sku: string, name: string, quantity: number
   await page.getByRole("searchbox", { name: "Buscar productos" }).fill(sku);
   await page.getByRole("button", { name: "Buscar" }).click();
   await expect(page.getByRole("article", { name })).toBeVisible();
-  await page.getByLabel(`Cantidad de ${name}`).fill(String(quantity));
+  // Si la lista de resultados se vuelve a pintar mientras se escribe, la cantidad vuelve a 1 y el
+  // clic agregaría la cantidad equivocada: se reescribe hasta que el valor se mantenga.
+  const input = page.getByLabel(`Cantidad de ${name}`);
+  await expect(async () => {
+    await input.fill(String(quantity));
+    await expect(input).toHaveValue(String(quantity), { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
   await page.getByRole("button", { name: `Agregar ${name} al carrito` }).click();
 }
 

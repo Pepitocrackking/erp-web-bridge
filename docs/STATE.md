@@ -6,7 +6,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - **Fase actual:** 7, Pedidos hacia el ERP
 - **Rama:** `phase-7/orders-to-erp` (sin push todavía)
 - **Última tarea completada:** 7.4 (el panel muestra el estado del pedido, su referencia, el motivo del error y un botón «Reintentar»).
-- **Estado de la fase:** tareas 7.1 a 7.4 hechas; falta cerrar con `phase-gate` (Gate 7).
+- **Estado de la fase:** completa. Gate 7 en verde (evidencia en `docs/evidence/phase-7.md`); PR abierto para fusionar.
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
