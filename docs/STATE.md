@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 1, Sandbox de Saint en Docker
 - **Rama:** `phase-1/saint-sandbox` (creada desde `main` tras el merge del PR #1; aún sin push)
-- **Última tarea completada:** 1.3 (seed determinista generado por `infra/saint-sandbox/tools/gen-seed.mjs`: 311 productos, 10 categorías, 3 depósitos, 48 clientes; el seed solo carga tablas vacías).
-- **Estado de la fase:** en curso. Siguiente tarea: 1.4
+- **Última tarea completada:** 1.4 (`mapping.saint.yaml` + `tools/validate-mapping.sh`, que comprueba el mapeo contra la base real).
+- **Estado de la fase:** en curso. Siguiente tarea: 1.5
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.

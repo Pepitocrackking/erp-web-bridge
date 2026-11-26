@@ -38,7 +38,7 @@ Objetivo: un SQL Server en contenedor con las tablas básicas de Saint y datos r
 - [x] **1.1** `docker-compose.yml` con SQL Server 2022, healthcheck, volumen y `.env.example` (sin contraseñas reales).
 - [x] **1.2** Script de esquema `infra/saint-sandbox/init/01-schema.sql`: base `SAINT_DEMO` con `SAPROD` (código, descripción, categoría, costo, precios 1 a 3, existencia, activo), `SAEXIS` (existencia por depósito), `SADEPO`, `SAINSTA` y `SACLIE` (código, nombre, RIF, límite de crédito, saldo).
 - [x] **1.3** Seed determinista `02-seed.sql`: al menos 300 productos en 8 o más categorías, 3 depósitos y 40 o más clientes con límite y saldo. Datos de una distribuidora venezolana verosímil.
-- [ ] **1.4** `infra/saint-sandbox/mapping.saint.yaml`: mapeo configurable de columnas de Saint a campos canónicos (`sku`, `name`, `category`, `cost_usd`, `price_usd`, `stock`, `active`).
+- [x] **1.4** `infra/saint-sandbox/mapping.saint.yaml`: mapeo configurable de columnas de Saint a campos canónicos (`sku`, `name`, `category`, `cost_usd`, `price_usd`, `stock`, `active`).
 - [ ] **1.5** Scripts `scripts/saint-sandbox.sh` y `.ps1` con `up`, `reset` y `mutate` (cambia precio y stock de productos concretos para simular actividad del ERP).
 - [ ] **1.6** `docs/saint-sandbox.md`: cómo levantarlo, qué tablas hay y la advertencia de que el esquema es de mejor esfuerzo y debe validarse contra una base real.
 
