@@ -60,8 +60,8 @@ Rama: `phase-2/monorepo-ci`
 - [x] **2.5** Lint y formato configurados (ESLint/Prettier y `golangci-lint` o `go vet`).
 
 ### Gate 2
-- [ ] `pnpm install && pnpm build && pnpm test` terminan en verde desde un clon limpio.
-- [ ] `go build ./... && go test ./...` en verde.
+- [x] `pnpm install && pnpm build && pnpm test` terminan en verde desde un clon limpio.
+- [x] `go build ./... && go test ./...` en verde.
 - [ ] El workflow de CI queda en verde en el propio PR.
 
 ---
