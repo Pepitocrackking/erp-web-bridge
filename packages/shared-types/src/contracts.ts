@@ -170,3 +170,47 @@ export const heartbeatResponseSchema = z.strictObject({
   server_time: z.iso.datetime(),
 });
 export type HeartbeatResponse = z.infer<typeof heartbeatResponseSchema>;
+
+/** Maximo que cabe en exchange_rates.rate_bs (NUMERIC(12,4)). */
+export const EXCHANGE_RATE_MAX = 99_999_999.9999;
+
+/** Cuerpo de POST /v1/orgs/:orgId/exchange-rate: solo la tasa; la fuente es siempre manual. */
+export const exchangeRateInputSchema = z.strictObject({
+  rate_bs: z.number().finite().positive().max(EXCHANGE_RATE_MAX),
+});
+export type ExchangeRateInput = z.infer<typeof exchangeRateInputSchema>;
+
+/** Una fila del historial de tasas (exchange_rates). */
+export const exchangeRateEntrySchema = z.strictObject({
+  id: z.uuid(),
+  org_id: z.uuid(),
+  rate_bs: z.number().positive(),
+  source: z.enum(["manual", "bcv"]),
+  set_by: z.uuid().nullable(),
+  created_at: z.iso.datetime(),
+});
+export type ExchangeRateEntry = z.infer<typeof exchangeRateEntrySchema>;
+
+/** Tasa vigente. source/set_by/set_at son null si nunca se fijo una (la tasa por defecto es 1). */
+export const currentExchangeRateSchema = z.strictObject({
+  org_id: z.uuid(),
+  rate_bs: z.number().positive(),
+  source: z.enum(["manual", "bcv"]).nullable(),
+  set_by: z.uuid().nullable(),
+  set_at: z.iso.datetime().nullable(),
+});
+export type CurrentExchangeRate = z.infer<typeof currentExchangeRateSchema>;
+
+export const exchangeRateHistoryQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type ExchangeRateHistoryQuery = z.infer<typeof exchangeRateHistoryQuerySchema>;
+
+export const exchangeRateHistorySchema = z.strictObject({
+  items: z.array(exchangeRateEntrySchema),
+  total: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative(),
+});
+export type ExchangeRateHistory = z.infer<typeof exchangeRateHistorySchema>;

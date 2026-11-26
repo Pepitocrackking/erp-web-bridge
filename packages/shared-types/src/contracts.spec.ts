@@ -1,5 +1,8 @@
 import {
   customerSchema,
+  EXCHANGE_RATE_MAX,
+  exchangeRateHistoryQuerySchema,
+  exchangeRateInputSchema,
   heartbeatResponseSchema,
   heartbeatSchema,
   orderSchema,
@@ -272,5 +275,45 @@ describe("heartbeatSchema", () => {
     const now = new Date().toISOString();
     expect(heartbeatResponseSchema.safeParse({ ok: true, server_time: now }).success).toBe(true);
     expect(heartbeatResponseSchema.safeParse({ ok: false, server_time: now }).success).toBe(false);
+  });
+});
+
+describe("tasa de cambio", () => {
+  it("acepta una tasa positiva con hasta el maximo de NUMERIC(12,4)", () => {
+    expect(exchangeRateInputSchema.safeParse({ rate_bs: 36.5 }).success).toBe(true);
+    expect(exchangeRateInputSchema.safeParse({ rate_bs: 0.0001 }).success).toBe(true);
+    expect(exchangeRateInputSchema.safeParse({ rate_bs: EXCHANGE_RATE_MAX }).success).toBe(true);
+  });
+
+  it.each<[string, unknown]>([
+    ["cero", { rate_bs: 0 }],
+    ["negativa", { rate_bs: -1 }],
+    ["texto", { rate_bs: "36.5" }],
+    ["nula", { rate_bs: null }],
+    ["infinita", { rate_bs: Infinity }],
+    ["mayor al maximo", { rate_bs: EXCHANGE_RATE_MAX + 1 }],
+    ["sin campo", {}],
+    ["con source", { rate_bs: 36, source: "bcv" }],
+    ["con set_by", { rate_bs: 36, set_by: "6f1c2f0e-8d3a-4b7e-9c55-1a2b3c4d5e6f" }],
+    ["con org_id", { rate_bs: 36, org_id: "6f1c2f0e-8d3a-4b7e-9c55-1a2b3c4d5e6f" }],
+  ])("rechaza %s", (_label, body) => {
+    expect(exchangeRateInputSchema.safeParse(body).success).toBe(false);
+  });
+
+  it("la consulta del historial convierte textos, aplica valores por defecto y limita", () => {
+    expect(exchangeRateHistoryQuerySchema.parse({})).toEqual({ limit: 50, offset: 0 });
+    expect(exchangeRateHistoryQuerySchema.parse({ limit: "10", offset: "5" })).toEqual({
+      limit: 10,
+      offset: 5,
+    });
+    for (const bad of [
+      { limit: "0" },
+      { limit: "201" },
+      { offset: "-1" },
+      { limit: "x" },
+      { otro: "1" },
+    ]) {
+      expect(exchangeRateHistoryQuerySchema.safeParse(bad).success).toBe(false);
+    }
   });
 });

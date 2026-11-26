@@ -59,6 +59,26 @@ export async function createStaffUser(
   return userId;
 }
 
+/** Crea un cliente B2B y un usuario con rol customer atado a él (comprador del catalogo). */
+export async function createCustomerUser(pool: Pool, orgId: string): Promise<string> {
+  const customerId = randomUUID();
+  await pool.query(
+    `INSERT INTO public.b2b_customers (id, org_id, erp_customer_code, tax_id, business_name)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [customerId, orgId, `C-${customerId.slice(0, 8)}`, "J-1", "Cliente de prueba"],
+  );
+  const userId = randomUUID();
+  await pool.query(
+    `INSERT INTO auth.users (id, aud, role, email) VALUES ($1, 'authenticated', 'authenticated', $2)`,
+    [userId, `${userId}@test.local`],
+  );
+  await pool.query(
+    `INSERT INTO public.org_members (org_id, user_id, role, customer_id) VALUES ($1, $2, 'customer', $3)`,
+    [orgId, userId, customerId],
+  );
+  return userId;
+}
+
 /** Borra los tenants de prueba (las FK en cascada limpian el resto) y sus usuarios. */
 export async function cleanup(pool: Pool, orgIds: string[], userIds: string[] = []): Promise<void> {
   if (orgIds.length)
