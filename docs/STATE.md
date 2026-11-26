@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 3, Base de datos y multi-tenant
 - **Rama:** `phase-3/database` (creada desde `main` tras el merge del PR #3; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 3. La Fase 2 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 3.1
+- **Última tarea completada:** 3.1 (Supabase local: CLI 3.4.0 como devDependency, `supabase/config.jsonc`, migración base `20261126000000_base.sql`, `supabase/seed.sql` provisional; `db reset` verificado). Fases 0 a 2 fusionadas.
+- **Estado de la fase:** en curso. Siguiente tarea: 3.2
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -20,12 +20,11 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - CI en `.github/workflows/ci.yml` (jobs `typescript` y `go`, en cada PR y push a `main`), verde a la primera en el PR. ESLint + Prettier (`pnpm lint`, `pnpm format`, `pnpm format:check`) y `gofmt`/`go vet` en el job de Go.
 
 ## Siguiente acción
-Ejecutar la tarea **3.1**: Supabase local con el CLI y migraciones en `supabase/migrations/`. Después, en orden: 3.2 esquema, 3.3 RLS, 3.4 pruebas de RLS, 3.5 seed de dos organizaciones. Luego `phase-gate` con el Gate 3 (ver ROADMAP, bloque `## Fase 3`).
+Ejecutar la tarea **3.2** (esquema). Después, en orden: 3.3 RLS, 3.4 pruebas de RLS, 3.5 seed de dos organizaciones. Luego `phase-gate` con el Gate 3 (ver ROADMAP, bloque `## Fase 3`).
 
 Detalles técnicos para hacerlo bien a la primera:
-- **El CLI de Supabase no está instalado** (`which supabase` no lo encuentra). Opciones: añadirlo como devDependency de la raíz (`pnpm add -Dw supabase`; el binario se descarga en un postinstall, así que habrá que permitirlo en `allowBuilds` de `pnpm-workspace.yaml`) o `pnpm dlx supabase`. Preferible la devDependency, para que el clon limpio del Gate funcione igual. Comprobar que `supabase --version` corre en Windows.
-- `supabase start` levanta una pila de contenedores (Postgres, Auth, REST, Realtime, Studio...) sobre Docker. Los puertos por defecto son 54321 a 54324; el sandbox de Saint usa el 14330, así que no chocan. `supabase db reset` aplica las migraciones y el seed desde cero: es la base del criterio "migraciones desde cero sin errores".
-- Layout: `supabase/config.toml`, `supabase/migrations/<timestamp>_<nombre>.sql`, `supabase/seed.sql`. Las migraciones son SQL plano e idempotentes en lo posible; el seed debe poder re-aplicarse sin duplicar (usar `ON CONFLICT DO NOTHING` o claves fijas).
+- **Supabase ya está instalado (3.1):** CLI `supabase` 3.4.0 en la raíz (`pnpm exec supabase ...`; atajos `pnpm db:start|stop|reset|status`, ver `docs/supabase-local.md`). La pila está levantada (contenedor de BD `supabase_db_erp-web-bridge`, `docker exec ... psql -U postgres`; URL `postgresql://postgres:postgres@127.0.0.1:54322/postgres`). La configuración es `supabase/config.jsonc` (formato nuevo, no `.toml`); está en `.prettierignore`. `db reset` aplica migraciones y seed desde cero. No cambiar a la pila experimental.
+- Layout: `supabase/migrations/<timestamp>_<nombre>.sql` (ya existe `20261126000000_base.sql` con pgcrypto y `public.set_updated_at()` para triggers), `supabase/seed.sql` (provisional, lo reemplaza 3.5). Las migraciones son SQL plano e idempotentes en lo posible; el seed debe poder re-aplicarse sin duplicar (usar `ON CONFLICT DO NOTHING` o claves fijas).
 - Esquema base: manual, sección 5 (`organizations`, `products`, `b2b_customers`, `web_orders`, `sync_logs`). Correcciones de 3.2 que pide el ROADMAP: `org_members` con roles, `price_lists` y precios por lista (el mapeo de Saint ya expone `Precio1/2/3`), historial `exchange_rates`, imágenes y descripción de producto, y estados completos del pedido (el contrato Zod actual solo tiene `pending_sync | synced_to_erp | error`: ampliar el esquema SQL y mantener `shared-types` alineado, con sus pruebas).
 - Alineación con `packages/shared-types`: los nombres de columna del SQL deben coincidir con los campos canónicos snake_case (`sku` mapea a `erp_sku` en la tabla; `customer_code` a `erp_customer_code`). Documentar esa correspondencia.
 - RLS (3.3 y 3.4): todas las tablas con `org_id` llevan RLS activada y políticas por pertenencia (`org_members`). Las pruebas de 3.4 deben ser automáticas y correr contra la base local: crear dos tenants y un usuario en cada uno, y comprobar con roles `authenticated` reales (no con `service_role`, que se salta RLS) que A no lee ni escribe datos de B, incluidos `INSERT` con `org_id` ajeno y `UPDATE`/`DELETE` cruzados. Incluir casos negativos explícitos. Elegir el runner con criterio (pgTAP vía `supabase test db`, o un script con `pg`); el Gate exige que sean repetibles.
@@ -77,4 +76,4 @@ Detalles técnicos para hacerlo bien a la primera:
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 2 fusionada (PR #3, CI en verde); rama de la Fase 3 creada con el relevo escrito.
+2026-11-26. Tarea 3.1 hecha en la rama `phase-3/database`.
