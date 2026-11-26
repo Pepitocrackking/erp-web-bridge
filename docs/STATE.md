@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 2, Monorepo y CI
 - **Rama:** `phase-2/monorepo-ci` (creada desde `main` tras el merge del PR #2; aún sin push)
-- **Última tarea completada:** 2.3 (contratos Zod, 32 pruebas). Antes, 2.2 (módulo Go base) y 2.1 (workspace pnpm + Turborepo, `GET /health` verificado). La Fase 1 está completa y fusionada.
-- **Estado de la fase:** en curso. Siguiente tarea: 2.4
+- **Última tarea completada:** 2.4 (workflow de CI, validado solo en sintaxis). Antes, 2.3 (contratos Zod), 2.2 (módulo Go base) y 2.1 (workspace pnpm + Turborepo). La Fase 1 está completa y fusionada.
+- **Estado de la fase:** en curso. Siguiente tarea: 2.5
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -17,9 +17,9 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Cómo levantarlo: `bash scripts/saint-sandbox.sh up` (ver "Cómo levantar el proyecto").
 
 ## Siguiente acción
-Ejecutar la tarea **2.4**: GitHub Actions (`.github/workflows/`) con lint, test y build de TypeScript (`pnpm install --frozen-lockfile`, `pnpm lint/test/build`) y de Go (`go vet`, `go build ./...`, `go test ./...` en `packages/erp-agent`) en cada PR. Ya existe `.github/` (plantilla de PR): revisarlo antes. El workflow solo se verifica de verdad en el PR; usar Node 24, pnpm 12.14.0 y Go 1.26.
+Ejecutar la tarea **2.5**: ESLint y Prettier (TS), `go vet` y `gofmt` (Go); conectar `pnpm lint` (hoy solo `tsc --noEmit` por paquete) y `pnpm format`, y añadir la comprobación de formato (`prettier --check`, `gofmt -l`) al CI en `.github/workflows/ci.yml`. Luego `phase-gate` con el Gate 2.
 
-Después, 2.5: ESLint y Prettier (TS), `go vet` y `gofmt` (Go); conectar `pnpm lint` y `pnpm format` y añadirlos al CI. Luego `phase-gate` con el Gate 2.
+Hecho en 2.4: `.github/workflows/ci.yml` con dos jobs (`typescript`: install --frozen-lockfile, lint, test, build; `go`: vet, build, test en `packages/erp-agent`), en `pull_request` y push a `main`. Sintaxis validada en local; **su verde real solo se comprueba en el PR** (`gh pr checks`). Pendiente de verificar allí: que `pnpm/action-setup@v4` lea `packageManager` (pnpm 12.14.0) y que `actions/setup-go` resuelva `go 1.26`.
 
 Hecho en 2.3: contratos Zod en `packages/shared-types/src/contracts.ts` (`productSchema`, `productRecordSchema` con `sync_hash`, `customerSchema`, `orderSchema`, `syncBatchSchema` discriminado por `kind` products/customers, máx. 1000 registros). Esquemas estrictos, snake_case canónico, 32 pruebas. `healthSchema` se conserva (lo usa `/health`).
 
