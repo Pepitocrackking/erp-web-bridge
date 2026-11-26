@@ -3,34 +3,33 @@
 Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo lee `retomar`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
 
 ## Posición
-- **Fase actual:** 1, Sandbox de Saint en Docker
-- **Rama:** `phase-1/saint-sandbox` (creada desde `main` tras el merge del PR #1; aún sin push)
-- **Última tarea completada:** Fase 1 completa; Gate 1 verificado y marcado (evidencia en `docs/evidence/phase-1.md`).
-- **Estado de la fase:** en curso. cerrada: push, PR y merge
+- **Fase actual:** 2, Monorepo y CI
+- **Rama:** `phase-2/monorepo-ci` (creada desde `main` tras el merge del PR #2; aún sin push)
+- **Última tarea completada:** ninguna de la Fase 2. La Fase 1 está completa y fusionada.
+- **Estado de la fase:** por empezar. Siguiente tarea: 2.1
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
   - Pendiente menor: el usuario confirma que `/retomar` aparece como skill en una sesión nueva (último criterio del Gate 0).
+- **Fase 1** (PR #2, fusionado el 2026-11-26): sandbox de Saint en Docker. Evidencia en `docs/evidence/phase-1.md`.
+  - `docker-compose.yml` (servicios `saint-sql` y `saint-init`), `.env.example`, `infra/saint-sandbox/` (init SQL idempotente, seed generado por `tools/gen-seed.mjs`, `mapping.saint.yaml`, `tools/` con reset/mutate/checksum/validate-mapping/gate), `scripts/saint-sandbox.sh` y `.ps1`, `docs/saint-sandbox.md`.
+  - Datos: 311 productos, 10 categorías, 3 depósitos (001, 002, 003), 48 clientes (algunos cerca o por encima de su límite de crédito). Códigos `P00001...` y `C00001...`.
+  - Cómo levantarlo: `bash scripts/saint-sandbox.sh up` (ver "Cómo levantar el proyecto").
 
 ## Siguiente acción
-Ejecutar la tarea **1.1**: `docker-compose.yml` en la raíz del repo con SQL Server 2022 y un `.env.example`.
+Ejecutar la tarea **2.1**: workspace `pnpm` con Turborepo en la raíz: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `apps/web`, `apps/api` y `packages/shared-types`.
 
 Detalles técnicos para hacerlo bien a la primera:
-- Imagen: `mcr.microsoft.com/mssql/server:2022-latest`. Variables: `ACCEPT_EULA=Y`, `MSSQL_SA_PASSWORD` (viene de `.env`, que está en `.gitignore`; solo se commitea `.env.example` con un valor de ejemplo que cumpla la política de contraseñas de SQL Server).
-- Healthcheck: `/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -Q "SELECT 1"`. La imagen 2022 usa `mssql-tools18`, y `-C` confía en el certificado.
-- Los scripts de `init/` no se ejecutan solos: usa un servicio auxiliar `saint-init` (misma imagen, `depends_on` con `condition: service_healthy`) que corra `sqlcmd` sobre `infra/saint-sandbox/init/*.sql` en orden, y que sea **idempotente** (`IF DB_ID(...) IS NULL`, `IF NOT EXISTS`, `MERGE` o `TRUNCATE` y recarga en el seed).
-- Puerto sugerido: `14330:1433`, para no chocar con un SQL Server local. Volumen con nombre para los datos.
-- Verificación de 1.1: `docker compose down -v && docker compose up -d` y comprobar que el contenedor llega a `healthy` (`docker compose ps`).
-- Docker ya está instalado y corriendo en la máquina (Docker 29.9.3, Windows).
+- Entorno: Node v24.14.1, pnpm 12.14.0, Go 1.26.5, Docker 29.9.3, Windows. Fija `packageManager` y `engines` en el `package.json` raíz.
+- Scripts raíz: `build`, `test`, `lint`, `format`, delegados a `turbo run`. Cada paquete debe tener `build` y `test` reales, porque el Gate 2 exige `pnpm install && pnpm build && pnpm test` en verde desde un clon limpio.
+- Estructura (manual, sección 4): `apps/web` (Next.js App Router, TypeScript, Tailwind), `apps/api` (NestJS), `packages/shared-types` (Zod), `packages/erp-agent` (Go, tarea 2.2, fuera de pnpm).
+- En 2.1 basta un esqueleto que compile: no implementes lógica de negocio. Un `GET /health` en la API y una página mínima en la web sirven de humo.
+- `.gitignore` ya cubre `node_modules/`, `dist/`, `.next/`, `.turbo/`. Commitea el `pnpm-lock.yaml`.
+- Para el Gate 2 clona el repo en un directorio nuevo y ejecuta ahí los comandos, no en el árbol de trabajo.
+- La tarea 2.4 (CI) se verifica de verdad solo en el PR: el workflow debe quedar en verde en GitHub antes del merge. `phase-gate` espera `gh pr checks` en verde.
+- Lint y formato (2.5): ESLint y Prettier para TypeScript; `go vet` y `gofmt` para Go (`golangci-lint` es opcional).
 
-Después, en orden: 1.2 esquema, 1.3 seed determinista, 1.4 mapeo, 1.5 scripts `up`/`reset`/`mutate`, 1.6 documentación. Luego `phase-gate` con el Gate 1 (ver ROADMAP).
-
-Notas de diseño del esquema (tarea 1.2), de mejor esfuerzo según el conocimiento público de Saint Enterprise, a validar con una base real:
-- `SAPROD`: `CodProd`, `Descrip`, `CodInst` (categoría), `Costo`, `Precio1`, `Precio2`, `Precio3`, `Existen`, `Activo`.
-- `SAEXIS`: `CodProd`, `CodUbic` (depósito), `Existen`.
-- `SADEPO`: `CodUbic`, `Descrip`. `SAINSTA`: `CodInst`, `Descrip`.
-- `SACLIE`: `CodClie`, `Descrip`, `ID3` (RIF), `LimiteCred`, `Saldo`, `Activo`.
-- Todo cambio de nombres va en `mapping.saint.yaml`, no en el código del agente.
+Después, en orden: 2.2 módulo Go, 2.3 contratos Zod (producto, cliente, pedido, lote de sincronización, alineados con el modelo del manual y los campos canónicos de `mapping.saint.yaml`), 2.4 GitHub Actions, 2.5 lint y formato. Luego `phase-gate` con el Gate 2 (ver ROADMAP).
 
 ## Hilo de contexto (por qué estamos haciendo esto)
 - **Quién:** Orlando Guerra, ingeniero de sistemas full stack. Usa este proyecto como pieza central del portafolio de una agencia de software, y quiere que pueda escalar y venderse.
@@ -59,8 +58,8 @@ Notas de diseño del esquema (tarea 1.2), de mejor esfuerzo según el conocimien
 - Ninguno.
 
 ## Cómo levantar el proyecto
-Todavía no hay nada que levantar. Se completa en la Fase 1.
+Sandbox de Saint: `bash scripts/saint-sandbox.sh up` (o `powershell -File scripts\saint-sandbox.ps1 up`); detalles en `docs/saint-sandbox.md`. Lo demás se completa en las fases siguientes.
 Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 0 fusionada; rama de la Fase 1 creada con el relevo escrito.
+2026-11-26. Fase 1 fusionada (PR #2); rama de la Fase 2 creada con el relevo escrito.
