@@ -54,7 +54,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: packages/erp-agent/go.mod
-          cache-dependency-path: packages/erp-agent/go.mod
+          cache-dependency-path: packages/erp-agent/go.sum
 
       - name: gofmt
         run: |
