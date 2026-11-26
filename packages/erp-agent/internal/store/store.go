@@ -29,6 +29,52 @@ var migrations = []string{
 		fingerprint TEXT NOT NULL,
 		PRIMARY KEY (kind, key)
 	) WITHOUT ROWID`,
+	`CREATE TABLE meta (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	) WITHOUT ROWID`,
+}
+
+// Commit describe qué huellas se guardan cuando la nube confirma un lote.
+// Replace=true sustituye TODAS las huellas del tipo (último lote de una
+// reconciliación completa); si no, se insertan o actualizan las indicadas.
+type Commit struct {
+	Replace      bool              `json:"replace"`
+	Fingerprints map[string]string `json:"fingerprints"`
+}
+
+// Apply guarda las huellas de un lote ya confirmado por la nube.
+func (s *Store) Apply(ctx context.Context, kind string, c Commit) error {
+	if c.Replace {
+		return s.Replace(ctx, kind, c.Fingerprints)
+	}
+	if len(c.Fingerprints) == 0 {
+		return nil
+	}
+	return s.Put(ctx, kind, c.Fingerprints)
+}
+
+// Meta devuelve un valor de la tabla meta ("" si no existe).
+func (s *Store) Meta(ctx context.Context, key string) (string, error) {
+	var v string
+	err := s.db.QueryRowContext(ctx, "SELECT value FROM meta WHERE key = ?", key).Scan(&v)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("store: leyendo meta %q: %w", key, err)
+	}
+	return v, nil
+}
+
+// SetMeta guarda un valor en la tabla meta.
+func (s *Store) SetMeta(ctx context.Context, key, value string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO meta (key, value) VALUES (?, ?)
+		ON CONFLICT (key) DO UPDATE SET value = excluded.value`, key, value)
+	if err != nil {
+		return fmt.Errorf("store: guardando meta %q: %w", key, err)
+	}
+	return nil
 }
 
 // Store es la base local. Es seguro para uso concurrente.
