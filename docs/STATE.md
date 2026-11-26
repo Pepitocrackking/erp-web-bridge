@@ -5,8 +5,22 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 6. La Fase 5 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 6.1
+- **Última tarea completada:** 6.1 (catálogo B2B con búsqueda, categorías y precios USD/Bs).
+- **Estado de la fase:** en curso. Siguiente tarea: 6.2 (esfuerzo alto: autenticación y aprobación).
+
+### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
+- **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
+- **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
+- **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
+- **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.1 (para no rehacerlo)
+- `packages/shared-types/src/money.ts`: `usdToBs` (BigInt, mitad hacia arriba, 2 decimales), `formatUsd`, `formatBs` (`$ 1.234,50`, `Bs. 1.234,50`). **Única fuente** de la conversión: reutilizar en 6.3/6.4/6.6.
+- Migración `..0600_catalog.sql`: vista `catalog_categories` (`security_invoker`, solo activos) + 3 pruebas en `rls.test.mjs` (ahora 33).
+- `apps/web`: `lib/supabase/{env,server}.ts`, `proxy.ts` (refresca sesión y manda a `/login` desde `/catalogo`), `lib/catalog.ts` (parseo de URL, filtro de búsqueda sanitizado, precio por rol, `fetchMembership/fetchCategories/fetchCatalog`), `/login` (acción `signIn`/`signOut`, solo inicio de sesión: **el registro llega en 6.2**), `/catalogo` (búsqueda GET, categorías, 24 por página), `ProductCard`.
+- El comprador ve el precio de su lista (`product_prices` embebido; RLS ya filtra por su lista) y el personal el precio base. La organización activa es la primera membresía del usuario (selector de organización: backlog).
+- Variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL` en `.env.example`; copiarlas a `apps/web/.env.local` (gitignored).
+- Playwright 1.65 en `apps/web` (`pnpm --filter @erp-web-bridge/web e2e`, o `pnpm e2e` desde `apps/web`): compila y levanta la web en el puerto 3100; 12 pruebas en `e2e/catalog.spec.ts` + `e2e/helpers.ts` (usuarios del seed). Necesita Supabase **completo** arriba y el seed (`pnpm db:reset`).
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -31,7 +45,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Backlog que quedó fuera: ejecutar el agente como servicio de Windows; validar el mapeo contra un Saint real; pedidos hacia el ERP (Fase 7).
 
 ## Siguiente acción
-Ejecutar la tarea **6.1** (catálogo B2B con búsqueda, categorías y precios en USD y Bs). Después 6.2 a 6.7 en orden, y `phase-gate` con el Gate 6 (bloque `## Fase 6` del ROADMAP). Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion; abajo, lo que hay que saber y mi propuesta por defecto (si no hay motivo para cambiarla, no preguntar).
+Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 6 (bloque `## Fase 6` del ROADMAP). **La tanda de dudas de la fase ya se hizo** (ver "Decisiones de la Fase 6"): no volver a preguntar. Lo de abajo es el contexto original de la fase; los puntos 1 a 4 de "puntos de diseño" ya están resueltos arriba.
 
 **Esfuerzo sugerido:** medio para 6.1, 6.5 y 6.7; alto para 6.2 (autenticación y aprobación: toca seguridad y probablemente una migración), 6.3 (crédito y dinero) y 6.4 (Realtime); medio-alto para 6.6 (simulador que dispara una sincronización real). El Gate 6 pide Playwright: decidir al principio.
 
@@ -89,6 +103,8 @@ Ejecutar la tarea **6.1** (catálogo B2B con búsqueda, categorías y precios en
 - **Supabase local (Fase 3):** CLI 3.4.0 en la raíz (`pnpm exec supabase ...`; atajos `pnpm db:start|stop|reset|status`; ver `docs/supabase-local.md`). La pila usa los puertos 54321 a 54324, la BD es `postgresql://postgres:postgres@127.0.0.1:54322/postgres` y el contenedor `supabase_db_erp-web-bridge`. `pnpm test:db` corre las 30 pruebas de RLS. El primer `supabase start` descarga imágenes (~4 min). En Git Bash, `docker exec ... psql -f /tmp/x.sql` convierte la ruta: pasar el SQL por stdin (`docker exec -i ... psql < archivo`). El CLI muestra avisos pidiendo cambiar a la "pila experimental": ignorarlos, no cambiar `config.jsonc`. El contenedor `supabase_vector_*` entra en bucle de reinicios: es solo el recolector de logs y no afecta a nada.
 - **Las pruebas de la API necesitan la base arriba:** `pnpm db:start` antes de `pnpm test`; si no, las suites de integración fallan por conexión. Crean sus propios tenants (ids aleatorios) y los borran; no dependen del seed ni lo ensucian. Los límites de rate limiting se suben en `apps/api/test/setup-env.ts`.
 - **No filtrar con `grep` la salida de jest para decidir si pasó:** una suite que no compila aparece como `Test suite failed to run` y no suma al conteo de pruebas; mirar siempre `Test Suites:` y el código de salida. Y encadenar con `&&` solo comandos cuyo código de salida sea fiable (un `| grep` lo enmascara).
+- **`pnpm db:start` no añade servicios si la pila ya corre con `-x` (la del CI/Fase 4):** dice "Stopped services: [kong, rest, realtime...]" y no los levanta. Para la pila completa: `pnpm db:stop && pnpm db:start`, luego `pnpm db:reset`. Comprobar con `docker ps` que están `supabase_kong_*` y `supabase_rest_*` antes de los E2E.
+- **Playwright en Windows:** los navegadores se instalan con `pnpm exec playwright install chromium` (en `apps/web`). Next añade su propio `role="alert"` (route announcer): acotar los selectores de alertas al formulario.
 - **Dependencias solo ESM rompen jest** (CommonJS): `jose`, `@apidevtools/swagger-parser` 13, Nest 12. Antes de añadir una dependencia a la API, comprobar su `"type": "module"`.
 - **`pnpm approve-builds` reescribe `pnpm-workspace.yaml` sin el estilo de Prettier:** después, `pnpm exec prettier --write pnpm-workspace.yaml` (si no, `pnpm format:check` falla).
 - **Git Credential Manager:** había un diálogo "Select an account" en cada push (dos cuentas guardadas). Resuelto con `git config --local credential.https://github.com.username Pepitocrackking` en este repo. Si reaparece en un clon nuevo, repetirlo.
@@ -114,4 +130,4 @@ Ejecutar la tarea **6.1** (catálogo B2B con búsqueda, categorías y precios en
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 5 fusionada (PR #6, CI en verde); rama de la Fase 6 creada con el relevo escrito.
+2026-11-26. Fase 6 en curso: tarea 6.1 hecha (12 E2E, 19 pruebas de web, 97 de shared-types, 33 de RLS, 156 de la API en verde).

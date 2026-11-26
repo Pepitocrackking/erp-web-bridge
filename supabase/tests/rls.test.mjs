@@ -182,6 +182,7 @@ describe("anon", () => {
     "exchange_rates",
     "web_orders",
     "sync_logs",
+    "catalog_categories",
   ];
 
   for (const t of tables) {
@@ -608,6 +609,45 @@ describe("roles dentro de una organización", () => {
         await attempt(c, `UPDATE public.web_orders SET total_usd = 0 WHERE id = $1`, [O_A1]),
         "cambiar total de un pedido",
       );
+    }));
+});
+
+describe("vista catalog_categories", () => {
+  const withCategories = async (c) => {
+    await c.query(
+      `UPDATE public.products
+          SET category = CASE id WHEN $1 THEN 'Alimentos' WHEN $2 THEN 'Inactiva' ELSE 'Ferretería' END`,
+      [P_A_ACTIVE, P_A_INACTIVE],
+    );
+  };
+  const SELECT_VIEW = `SELECT org_id, category, product_count FROM public.catalog_categories`;
+
+  it("cuenta solo productos activos de la propia organización (comprador y personal)", () =>
+    withTenants(async (c) => {
+      await withCategories(c);
+      for (const user of [U_CUST_A1, U_STAFF_A, U_OWNER_A]) {
+        await as(c, user);
+        const r = await attempt(c, SELECT_VIEW);
+        assert.deepEqual(
+          r.rows.map((row) => [row.org_id, row.category, row.product_count]),
+          [[ORG_A, "Alimentos", 1]],
+          `usuario ${user}`,
+        );
+      }
+      await as(c, U_CUST_B);
+      const b = await attempt(c, SELECT_VIEW);
+      assert.deepEqual(b.rows.map((row) => [row.org_id, row.category]), [[ORG_B, "Ferretería"]]);
+    }));
+
+  it("un autenticado sin membresía no ve categorías y la vista no admite escrituras", () =>
+    withTenants(async (c) => {
+      await withCategories(c);
+      await as(c, U_NOBODY);
+      assert.equal((await attempt(c, SELECT_VIEW)).rowCount, 0);
+      await as(c, U_OWNER_A);
+      const write = await attempt(c, `UPDATE public.catalog_categories SET category = 'x'`);
+      // 55000: la vista agregada no es actualizable; 42501: sin permiso. Ambas son rechazos.
+      assert.ok(["42501", "55000"].includes(write.error?.code), "la vista no admite escrituras");
     }));
 });
 
