@@ -35,7 +35,7 @@ Rama: `phase-1/saint-sandbox`
 
 Objetivo: un SQL Server en contenedor con las tablas básicas de Saint y datos realistas, para desarrollar y probar el `SaintAdapter` sin un Saint real.
 
-- [ ] **1.1** `docker-compose.yml` con SQL Server 2022, healthcheck, volumen y `.env.example` (sin contraseñas reales).
+- [x] **1.1** `docker-compose.yml` con SQL Server 2022, healthcheck, volumen y `.env.example` (sin contraseñas reales).
 - [ ] **1.2** Script de esquema `infra/saint-sandbox/init/01-schema.sql`: base `SAINT_DEMO` con `SAPROD` (código, descripción, categoría, costo, precios 1 a 3, existencia, activo), `SAEXIS` (existencia por depósito), `SADEPO`, `SAINSTA` y `SACLIE` (código, nombre, RIF, límite de crédito, saldo).
 - [ ] **1.3** Seed determinista `02-seed.sql`: al menos 300 productos en 8 o más categorías, 3 depósitos y 40 o más clientes con límite y saldo. Datos de una distribuidora venezolana verosímil.
 - [ ] **1.4** `infra/saint-sandbox/mapping.saint.yaml`: mapeo configurable de columnas de Saint a campos canónicos (`sku`, `name`, `category`, `cost_usd`, `price_usd`, `stock`, `active`).

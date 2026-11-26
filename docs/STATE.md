@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 1, Sandbox de Saint en Docker
 - **Rama:** `phase-1/saint-sandbox` (creada desde `main` tras el merge del PR #1; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 1. La Fase 0 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 1.1
+- **Última tarea completada:** 1.1 (docker-compose con SQL Server 2022 y servicio `saint-init`, verificado `healthy`).
+- **Estado de la fase:** en curso. Siguiente tarea: 1.2
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
