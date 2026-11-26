@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 3, Base de datos y multi-tenant
 - **Rama:** `phase-3/database` (creada desde `main` tras el merge del PR #3; aún sin push)
-- **Última tarea completada:** 3.2 (esquema `supabase/migrations/20261126000100_schema.sql`: organizations, price_lists, products, product_prices, b2b_customers, org_members, exchange_rates, web_orders, sync_logs; claves compuestas (org_id, id) para impedir referencias entre tenants; trigger que aplica la última tasa a `organizations.exchange_rate_bs`; `ORDER_STATUSES` de shared-types ampliado a 6 estados). 3.1 también hecha.
-- **Estado de la fase:** en curso. Siguiente tarea: 3.3 (RLS)
+- **Última tarea completada:** 3.3 (migración `20261126000200_rls.sql`: RLS en las 9 tablas, funciones `private.*` SECURITY DEFINER, permisos por columna, `api_key_hash` no legible por `authenticated` (por eso `select *` en `organizations` falla: listar columnas), pedidos solo los crea la API con service_role). 3.1 y 3.2 hechas.
+- **Estado de la fase:** en curso. Siguiente tarea: 3.4 (pruebas de RLS)
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -20,7 +20,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - CI en `.github/workflows/ci.yml` (jobs `typescript` y `go`, en cada PR y push a `main`), verde a la primera en el PR. ESLint + Prettier (`pnpm lint`, `pnpm format`, `pnpm format:check`) y `gofmt`/`go vet` en el job de Go.
 
 ## Siguiente acción
-Ejecutar la tarea **3.3** (RLS en una migración nueva, `..._rls.sql`). Después, en orden: 3.4 pruebas de RLS, 3.5 seed. Notas del esquema ya creado para 3.3: roles de `org_members` = owner/admin/staff/customer (customer atado a `customer_id`); todas las tablas con `org_id` (todas menos ninguna: las 9 lo tienen, `organizations` usa `id`); `exchange_rates` solo debe insertarlo personal (owner/admin) y la trigger `apply_exchange_rate` es SECURITY DEFINER; el agente usa service_role/API (no RLS), así que las políticas son para usuarios `authenticated`; `anon` no debe ver nada. Los clientes `customer` solo deben ver sus propios `b2b_customers` y `web_orders`, y productos/precios activos de su organización. Ojo: `auto_expose_new_tables` concede permisos a anon/authenticated sobre tablas nuevas, así que RLS es la única barrera: activarla en TODAS (con FORCE si conviene) y revocar a anon lo que sobre. Recordatorio histórico de la lista previa: 3.3 RLS, 3.4 pruebas de RLS, 3.5 seed de dos organizaciones. Luego `phase-gate` con el Gate 3 (ver ROADMAP, bloque `## Fase 3`).
+Ejecutar la tarea **3.4** (pruebas automáticas de RLS). Después 3.5 seed. Las políticas de 3.3 ya existen; las pruebas deben cubrir: aislamiento A/B por rol (owner, staff, customer), `anon` sin acceso, INSERT con org_id ajeno, UPDATE/DELETE cruzados, escalada en org_members (admin no crea owners), cliente solo ve lo suyo y productos activos, `api_key_hash` ilegible, historial de tasas inmutable, trigger que aplica la tasa. [Nota histórica de 3.3 abajo.] Notas del esquema ya creado para 3.3: roles de `org_members` = owner/admin/staff/customer (customer atado a `customer_id`); todas las tablas con `org_id` (todas menos ninguna: las 9 lo tienen, `organizations` usa `id`); `exchange_rates` solo debe insertarlo personal (owner/admin) y la trigger `apply_exchange_rate` es SECURITY DEFINER; el agente usa service_role/API (no RLS), así que las políticas son para usuarios `authenticated`; `anon` no debe ver nada. Los clientes `customer` solo deben ver sus propios `b2b_customers` y `web_orders`, y productos/precios activos de su organización. Ojo: `auto_expose_new_tables` concede permisos a anon/authenticated sobre tablas nuevas, así que RLS es la única barrera: activarla en TODAS (con FORCE si conviene) y revocar a anon lo que sobre. Recordatorio histórico de la lista previa: 3.3 RLS, 3.4 pruebas de RLS, 3.5 seed de dos organizaciones. Luego `phase-gate` con el Gate 3 (ver ROADMAP, bloque `## Fase 3`).
 
 Detalles técnicos para hacerlo bien a la primera:
 - **Supabase ya está instalado (3.1):** CLI `supabase` 3.4.0 en la raíz (`pnpm exec supabase ...`; atajos `pnpm db:start|stop|reset|status`, ver `docs/supabase-local.md`). La pila está levantada (contenedor de BD `supabase_db_erp-web-bridge`, `docker exec ... psql -U postgres`; URL `postgresql://postgres:postgres@127.0.0.1:54322/postgres`). La configuración es `supabase/config.jsonc` (formato nuevo, no `.toml`); está en `.prettierignore`. `db reset` aplica migraciones y seed desde cero. No cambiar a la pila experimental.
@@ -76,4 +76,4 @@ Detalles técnicos para hacerlo bien a la primera:
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Tarea 3.2 hecha en la rama `phase-3/database`.
+2026-11-26. Tarea 3.3 hecha en la rama `phase-3/database`.
