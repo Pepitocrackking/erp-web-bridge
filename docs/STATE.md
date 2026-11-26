@@ -6,7 +6,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
 - **Última tarea completada:** 6.7 (PWA instalable). **Las 7 tareas de la Fase 6 están hechas.**
-- **Estado de la fase:** lista para el Gate 6. Siguiente acción: invocar `phase-gate` (esfuerzo medio). Pendiente del Gate: **Lighthouse PWA** (ver "Hecho en la 6.7"), escribir `docs/evidence/phase-6.md`, y la rama `phase-6/web` aún no se ha subido (8 commits locales).
+- **Estado de la fase:** Gate 6 superado (evidencia en `docs/evidence/phase-6.md`: 45 E2E, Lighthouse PWA 100 %, pedido por encima del crédito rechazado). Falta subir la rama, abrir el PR y fusionarlo.
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.

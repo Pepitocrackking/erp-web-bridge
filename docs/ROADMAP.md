@@ -132,9 +132,9 @@ Rama: `phase-6/web`
 - [x] **6.7** PWA instalable con catálogo en caché.
 
 ### Gate 6
-- [ ] E2E con Playwright en verde: demo, edición en el simulador, el catálogo cambia en vivo.
-- [ ] Un pedido que supera el límite de crédito es rechazado.
-- [ ] Lighthouse PWA válido.
+- [x] E2E con Playwright en verde: demo, edición en el simulador, el catálogo cambia en vivo.
+- [x] Un pedido que supera el límite de crédito es rechazado.
+- [x] Lighthouse PWA válido.
 
 ---
 
