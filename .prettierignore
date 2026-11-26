@@ -13,3 +13,4 @@ scripts
 .claude
 packages/erp-agent
 docker-compose.yml
+supabase

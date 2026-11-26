@@ -38,7 +38,15 @@ export const customerSchema = z.strictObject({
 });
 export type Customer = z.infer<typeof customerSchema>;
 
-export const ORDER_STATUSES = ["pending_sync", "synced_to_erp", "error"] as const;
+/** Debe coincidir con el CHECK de `web_orders.status` en `supabase/migrations`. */
+export const ORDER_STATUSES = [
+  "pending_sync",
+  "synced_to_erp",
+  "approved",
+  "rejected",
+  "cancelled",
+  "error",
+] as const;
 export const orderStatusSchema = z.enum(ORDER_STATUSES);
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 
