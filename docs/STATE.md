@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 1, Sandbox de Saint en Docker
 - **Rama:** `phase-1/saint-sandbox` (creada desde `main` tras el merge del PR #1; aún sin push)
-- **Última tarea completada:** 1.6 (`docs/saint-sandbox.md`). Todas las tareas de la Fase 1 están hechas; falta ejecutar `phase-gate`.
-- **Estado de la fase:** en curso. Siguiente: phase-gate (Gate 1)
+- **Última tarea completada:** Fase 1 completa; Gate 1 verificado y marcado (evidencia en `docs/evidence/phase-1.md`).
+- **Estado de la fase:** en curso. cerrada: push, PR y merge
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.

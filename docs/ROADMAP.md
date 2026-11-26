@@ -43,10 +43,10 @@ Objetivo: un SQL Server en contenedor con las tablas básicas de Saint y datos r
 - [x] **1.6** `docs/saint-sandbox.md`: cómo levantarlo, qué tablas hay y la advertencia de que el esquema es de mejor esfuerzo y debe validarse contra una base real.
 
 ### Gate 1
-- [ ] Desde cero (`down -v` y luego `up`) el contenedor queda `healthy` en menos de 90 s.
-- [ ] Consultas reales devuelven: al menos 300 filas en `SAPROD`, 3 en `SADEPO`, al menos 40 en `SACLIE`, y `SAEXIS` consistente con la suma de existencias de `SAPROD`.
-- [ ] `mutate` cambia las filas esperadas y `reset` restaura el estado original (se comprueba con un checksum de la tabla).
-- [ ] Volver a ejecutar el init no duplica datos (idempotencia).
+- [x] Desde cero (`down -v` y luego `up`) el contenedor queda `healthy` en menos de 90 s.
+- [x] Consultas reales devuelven: al menos 300 filas en `SAPROD`, 3 en `SADEPO`, al menos 40 en `SACLIE`, y `SAEXIS` consistente con la suma de existencias de `SAPROD`.
+- [x] `mutate` cambia las filas esperadas y `reset` restaura el estado original (se comprueba con un checksum de la tabla).
+- [x] Volver a ejecutar el init no duplica datos (idempotencia).
 
 ---
 
