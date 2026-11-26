@@ -30,6 +30,7 @@ El plan completo, con tareas y criterios de aceptación por fase, está en `docs
 | `phase-gate` | Al terminar todas las tareas de una fase: verificar, pushear y abrir PR |
 | `guardar-estado` | Guardar el estado en `docs/STATE.md` antes de `/clear` |
 | `retomar` | Retomar tras `/clear` o en una sesión nueva |
+| `esfuerzo` | Aconsejar el nivel de esfuerzo de razonamiento y el modelo (Sonnet 5 o 5.5) para la siguiente tarea |
 
 ## Convenciones
 - Comunicación, documentación y commits en español; identificadores de código en inglés.

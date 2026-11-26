@@ -11,7 +11,7 @@ for f in CLAUDE.md README.md docs/ROADMAP.md docs/STATE.md docs/manual-proyecto-
   [ -f "$f" ] && ok "existe $f" || err "falta $f"
 done
 
-for s in next-task phase-gate guardar-estado retomar; do
+for s in next-task phase-gate guardar-estado retomar esfuerzo; do
   f=".claude/skills/$s/SKILL.md"
   if [ ! -f "$f" ]; then err "falta $f"; continue; fi
   [ "$(sed -n '1p' "$f" | tr -d '\r')" = "---" ] || err "$f: no empieza con frontmatter ---"

@@ -85,19 +85,19 @@ Rama: `phase-3/database`
 ## Fase 4: API (NestJS)
 Rama: `phase-4/api`
 
-- [ ] **4.1** Autenticación de agentes por `x-api-key` (comparación contra hash) y JWT para usuarios.
-- [ ] **4.2** `POST /v1/sync/products`: upsert masivo por `(org_id, erp_sku)`, con desactivación de productos ausentes en una reconciliación completa.
-- [ ] **4.3** `POST /v1/sync/customers`: clientes con límite de crédito y deuda.
-- [ ] **4.4** `sync_logs` en cada sincronización y endpoint de `heartbeat` del agente.
-- [ ] **4.5** Tasa de cambio manual: endpoints para fijarla y consultarla, con historial.
-- [ ] **4.6** Pedidos: creación con validación de límite de crédito, `GET /v1/orders/pending` para el agente y confirmación idempotente.
-- [ ] **4.7** Rate limiting, validación estricta de entrada y documentación OpenAPI.
+- [x] **4.1** Autenticación de agentes por `x-api-key` (comparación contra hash) y JWT para usuarios.
+- [x] **4.2** `POST /v1/sync/products`: upsert masivo por `(org_id, erp_sku)`, con desactivación de productos ausentes en una reconciliación completa.
+- [x] **4.3** `POST /v1/sync/customers`: clientes con límite de crédito y deuda.
+- [x] **4.4** `sync_logs` en cada sincronización y endpoint de `heartbeat` del agente.
+- [x] **4.5** Tasa de cambio manual: endpoints para fijarla y consultarla, con historial.
+- [x] **4.6** Pedidos: creación con validación de límite de crédito, `GET /v1/orders/pending` para el agente y confirmación idempotente.
+- [x] **4.7** Rate limiting, validación estricta de entrada y documentación OpenAPI.
 
 ### Gate 4
-- [ ] Pruebas de integración contra un Postgres real (no mocks) en verde.
-- [ ] Ingesta de 5.000 productos medida y registrada en la evidencia.
-- [ ] Una API key de la organización A no puede escribir en la B.
-- [ ] Confirmar dos veces el mismo pedido no lo duplica.
+- [x] Pruebas de integración contra un Postgres real (no mocks) en verde.
+- [x] Ingesta de 5.000 productos medida y registrada en la evidencia.
+- [x] Una API key de la organización A no puede escribir en la B.
+- [x] Confirmar dos veces el mismo pedido no lo duplica.
 
 ---
 
