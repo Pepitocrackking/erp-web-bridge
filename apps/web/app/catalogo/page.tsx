@@ -36,20 +36,8 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
   if (!user) redirect("/login");
 
   const membership = await fetchMembership(supabase, user.id);
-  if (!membership) {
-    return (
-      <main className="mx-auto max-w-xl p-8">
-        <h1 className="text-2xl font-bold">Sin acceso</h1>
-        <p className="mt-2 text-slate-600">
-          Tu cuenta aún no pertenece a ninguna empresa. Si ya solicitaste acceso, espera a que el
-          administrador lo apruebe.
-        </p>
-        <form action={signOut} className="mt-4">
-          <button className="underline">Salir</button>
-        </form>
-      </main>
-    );
-  }
+  // Sin empresa todavía: pedir acceso (o ver el estado de la solicitud).
+  if (!membership) redirect("/acceso");
 
   const [catalog, categories] = await Promise.all([
     fetchCatalog(supabase, membership, params),
@@ -65,9 +53,16 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
             Tasa del día: {formatBs(membership.rateBs)} por USD
           </p>
         </div>
-        <form action={signOut}>
-          <button className="text-sm underline">Salir</button>
-        </form>
+        <div className="flex items-center gap-4 text-sm">
+          {(membership.role === "owner" || membership.role === "admin") && (
+            <Link href="/admin/solicitudes" className="underline">
+              Solicitudes de acceso
+            </Link>
+          )}
+          <form action={signOut}>
+            <button className="underline">Salir</button>
+          </form>
+        </div>
       </header>
 
       <form action="/catalogo" method="get" role="search" className="mb-4 flex gap-2">

@@ -5,14 +5,20 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** 6.1 (catálogo B2B con búsqueda, categorías y precios USD/Bs).
-- **Estado de la fase:** en curso. Siguiente tarea: 6.2 (esfuerzo alto: autenticación y aprobación).
+- **Última tarea completada:** 6.2 (registro de compradores con aprobación del admin).
+- **Estado de la fase:** en curso. Siguiente tarea: 6.3 (esfuerzo alto: límite de crédito y dinero).
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
 - **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
 - **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
 - **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.2 (para no rehacerlo)
+- Migración `..0700_access_requests.sql`: tabla `customer_access_requests` (solo lectura por RLS: el solicitante ve la suya, los owner/admin las de su empresa) y 3 funciones `SECURITY DEFINER` solo para `authenticated`: `request_customer_access(slug, rif, razón social)`, `approve_access_request(id, customer_id?)` (sin `customer_id`, ata al único cliente activo con el mismo RIF normalizado), `reject_access_request(id, nota)`. Los errores son códigos en el mensaje (`org_not_found`, `already_member`, `no_matching_customer`, `ambiguous_customer`, `forbidden`...); la web los traduce en `lib/access.ts`. 13 pruebas nuevas en `rls.test.mjs` (ahora 46); **no dependen de que la base esté limpia**.
+- Web: `/registro` (signUp), `/acceso` (formulario y estado de las solicitudes; es adonde va quien no tiene empresa), `/admin/solicitudes` (solo owner/admin: aprobar con cliente sugerido por RIF o elegido, rechazar con motivo). `/catalogo` redirige a `/acceso` sin membresía y muestra el enlace de solicitudes a los admins. El proxy protege `/catalogo`, `/acceso` y `/admin`.
+- E2E: `e2e/access.spec.ts` (7 pruebas: flujo completo, RIF desconocido, rechazo y nueva petición, empresa inexistente, aislamiento entre empresas, rol sin permiso, contraseña corta). Crean usuarios con correo único; `pnpm db:reset` los limpia. Total E2E: 19.
+- Backlog: selector de organización si un usuario pertenece a varias; correo de aviso al aprobar; buscador en el desplegable de clientes (hoy carga hasta 1000).
 
 ### Hecho en la 6.1 (para no rehacerlo)
 - `packages/shared-types/src/money.ts`: `usdToBs` (BigInt, mitad hacia arriba, 2 decimales), `formatUsd`, `formatBs` (`$ 1.234,50`, `Bs. 1.234,50`). **Única fuente** de la conversión: reutilizar en 6.3/6.4/6.6.
@@ -130,4 +136,4 @@ Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 en curso: tarea 6.1 hecha (12 E2E, 19 pruebas de web, 97 de shared-types, 33 de RLS, 156 de la API en verde).
+2026-11-26. Fase 6 en curso: tareas 6.1 y 6.2 hechas (19 E2E, 24 pruebas de web, 97 de shared-types, 46 de RLS, 156 de la API en verde).

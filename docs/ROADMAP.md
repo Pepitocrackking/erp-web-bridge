@@ -124,7 +124,7 @@ Rama: `phase-5/agent`
 Rama: `phase-6/web`
 
 - [x] **6.1** Catálogo B2B con búsqueda, categorías y precios en USD y Bs según la tasa vigente.
-- [ ] **6.2** Login de cliente B2B con aprobación por el admin.
+- [x] **6.2** Login de cliente B2B con aprobación por el admin.
 - [ ] **6.3** Carrito y checkout con validación de límite de crédito.
 - [ ] **6.4** Panel admin: tasa de cambio, clientes, pedidos y estado de sincronización en tiempo real (Supabase Realtime).
 - [ ] **6.5** "Entrar como Administrador Demo" en 1 clic.
