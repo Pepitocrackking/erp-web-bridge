@@ -30,6 +30,15 @@ jobs:
 
       - run: pnpm format:check
       - run: pnpm lint
+
+      # Las pruebas de integración de la API y las de RLS corren contra un Postgres real: la pila
+      # local de Supabase con solo lo necesario (la base y GoTrue, que crea el esquema `auth`).
+      # `start` aplica las migraciones y el seed. Descarga las imágenes: tarda unos minutos.
+      - name: Levantar Supabase local (base de datos y auth)
+        run: >
+          pnpm exec supabase start -x
+          realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - run: pnpm test:db
       - run: pnpm test
       - run: pnpm build
 

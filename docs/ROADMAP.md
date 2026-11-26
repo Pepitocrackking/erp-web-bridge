@@ -94,10 +94,10 @@ Rama: `phase-4/api`
 - [x] **4.7** Rate limiting, validación estricta de entrada y documentación OpenAPI.
 
 ### Gate 4
-- [ ] Pruebas de integración contra un Postgres real (no mocks) en verde.
-- [ ] Ingesta de 5.000 productos medida y registrada en la evidencia.
-- [ ] Una API key de la organización A no puede escribir en la B.
-- [ ] Confirmar dos veces el mismo pedido no lo duplica.
+- [x] Pruebas de integración contra un Postgres real (no mocks) en verde.
+- [x] Ingesta de 5.000 productos medida y registrada en la evidencia.
+- [x] Una API key de la organización A no puede escribir en la B.
+- [x] Confirmar dos veces el mismo pedido no lo duplica.
 
 ---
 
