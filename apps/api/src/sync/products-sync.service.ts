@@ -1,7 +1,8 @@
-import { ConflictException, Injectable, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import type { ProductSyncBatch, SyncResult } from "@erp-web-bridge/shared-types";
 import type { PoolClient } from "pg";
 import { BatchRunner, type BatchCounts } from "./batch-runner";
+import { applyReconciliation, findDuplicates } from "./reconciliation";
 
 /**
  * Upsert masivo en UNA sentencia: `unnest` de arreglos paralelos + `ON CONFLICT`. Las filas cuyo
@@ -39,18 +40,12 @@ export class ProductsSyncService {
   constructor(private readonly runner: BatchRunner) {}
 
   ingest(orgId: string, batch: ProductSyncBatch): Promise<SyncResult> {
-    // `ON CONFLICT DO UPDATE` no admite la misma clave dos veces en una sentencia, y un SKU
-    // repetido en el lote es ambiguo (¿cuál manda?). Se rechaza en vez de elegir uno al azar.
-    const seen = new Set<string>();
-    const duplicated = new Set<string>();
-    for (const record of batch.records) {
-      if (seen.has(record.sku)) duplicated.add(record.sku);
-      seen.add(record.sku);
-    }
-    if (duplicated.size > 0) {
+    // Un SKU repetido en el lote es ambiguo (¿cuál manda?): se rechaza en vez de elegir uno.
+    const duplicated = findDuplicates(batch.records.map((r) => r.sku));
+    if (duplicated.length > 0) {
       throw new UnprocessableEntityException({
         message: "SKU repetidos dentro del lote",
-        skus: [...duplicated].slice(0, 20),
+        skus: duplicated.slice(0, 20),
       });
     }
 
@@ -83,25 +78,16 @@ export class ProductsSyncService {
       updated = res.rows[0]?.updated ?? 0;
     }
 
-    let deactivated: number | null = null;
-    if (batch.full_reconciliation && batch.reconciliation_id) {
-      // Se sella lo recibido (cambie o no) con el id de esta reconciliación.
-      if (records.length > 0) {
-        await client.query(
-          `UPDATE public.products SET reconciliation_id = $2
-            WHERE org_id = $1 AND erp_sku = ANY($3::text[]) AND reconciliation_id IS DISTINCT FROM $2`,
-          [orgId, batch.reconciliation_id, records.map((r) => r.sku)],
-        );
-      }
-      if (batch.final_batch) {
-        deactivated = await this.finishReconciliation(
-          client,
-          orgId,
-          batch.reconciliation_id,
-          batch.total_records ?? 0,
-        );
-      }
-    }
+    const deactivated =
+      batch.full_reconciliation && batch.reconciliation_id
+        ? await applyReconciliation(
+            client,
+            "products",
+            orgId,
+            { ...batch, reconciliation_id: batch.reconciliation_id },
+            records.map((r) => r.sku),
+          )
+        : null;
 
     return {
       received: records.length,
@@ -110,37 +96,5 @@ export class ProductsSyncService {
       unchanged: records.length - inserted - updated,
       deactivated,
     };
-  }
-
-  /**
-   * Último lote de una reconciliación: desactiva lo que el ERP ya no envió, pero solo si se
-   * recibió exactamente el inventario anunciado. Si no cuadra (se perdió un lote, o llegó
-   * fuera de orden) se aborta con 409 y la transacción revierte TAMBIÉN este lote: no se
-   * desactiva nada y el agente puede reiniciar la reconciliación.
-   */
-  private async finishReconciliation(
-    client: PoolClient,
-    orgId: string,
-    reconciliationId: string,
-    expectedTotal: number,
-  ): Promise<number> {
-    const stamped = await client.query<{ n: number }>(
-      "SELECT count(*)::int AS n FROM public.products WHERE org_id = $1 AND reconciliation_id = $2",
-      [orgId, reconciliationId],
-    );
-    const received = stamped.rows[0]?.n ?? 0;
-    if (received !== expectedTotal) {
-      throw new ConflictException({
-        message: "Reconciliación incompleta: no se desactivó ningún producto",
-        expected_total: expectedTotal,
-        received_total: received,
-      });
-    }
-    const res = await client.query(
-      `UPDATE public.products SET is_active = false
-        WHERE org_id = $1 AND is_active AND reconciliation_id IS DISTINCT FROM $2`,
-      [orgId, reconciliationId],
-    );
-    return res.rowCount ?? 0;
   }
 }
