@@ -698,7 +698,11 @@ describe("service_role (control: es lo que usa la API de ingesta)", () => {
     withTenants(async (c) => {
       await c.query("RESET ROLE");
       await c.query("SET LOCAL ROLE service_role");
-      const r = await attempt(c, `SELECT DISTINCT org_id FROM public.products`);
+      const r = await attempt(
+        c,
+        `SELECT DISTINCT org_id FROM public.products WHERE org_id IN ($1, $2)`,
+        [ORG_A, ORG_B],
+      );
       assert.deepEqual(ids(r), [ORG_A, ORG_B]);
     }));
 });

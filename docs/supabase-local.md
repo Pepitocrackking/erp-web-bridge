@@ -34,3 +34,13 @@ Cubre lecturas y escrituras cruzadas entre tenants, `anon`, límites por rol, es
 - `select *` sobre `organizations` falla para usuarios: `api_key_hash` no es legible (permiso por columna). Hay que listar columnas.
 - Los pedidos (`web_orders`) los crea solo la API con `service_role`, tras validar el límite de crédito. Los usuarios solo pueden anular pedidos pendientes o con error.
 - Las tablas nuevas en `public` no se exponen por defecto a `anon`/`authenticated`: cada migración debe conceder lo que necesite y activar RLS.
+
+## Seed de desarrollo
+
+`supabase/seed.sql` se aplica solo tras `pnpm db:reset` y crea dos organizaciones: **Distribuidora Demo** (`demo-saint`, 30 productos, 3 listas de precio, 5 clientes, pedidos y bitácora) y **Comercial Beta** (`demo-mock`, 15 productos, 2 clientes). Es re-aplicable sin duplicar (ids fijos y `ON CONFLICT DO NOTHING`):
+
+```bash
+docker exec -i supabase_db_erp-web-bridge psql -U postgres < supabase/seed.sql
+```
+
+Claves de agente de desarrollo (solo se guarda el hash SHA-256): `erp_dev_demo_saint_key` y `erp_dev_demo_mock_key`. Usuarios (contraseña `demo1234`): `admin@demo-saint.test` (owner), `staff@demo-saint.test`, `cliente@demo-saint.test` (customer del cliente C00001) y `admin@demo-mock.test` (owner de B). Son datos ficticios solo para local: nunca se cargan en un entorno real.

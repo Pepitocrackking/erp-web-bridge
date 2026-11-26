@@ -73,7 +73,7 @@ Rama: `phase-3/database`
 - [x] **3.2** Esquema del manual más las correcciones: `org_members` y roles, `price_lists` y precios por lista, historial `exchange_rates`, imágenes y descripción de producto, estados completos del pedido.
 - [x] **3.3** Políticas RLS por `org_id` en todas las tablas.
 - [x] **3.4** Pruebas automáticas de RLS: el tenant A no puede leer ni escribir datos del tenant B.
-- [ ] **3.5** Seed de dos organizaciones de prueba.
+- [x] **3.5** Seed de dos organizaciones de prueba.
 
 ### Gate 3
 - [ ] Las migraciones se aplican desde cero sin errores.
