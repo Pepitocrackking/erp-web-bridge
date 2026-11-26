@@ -53,6 +53,18 @@ Montos en USD. Todo el contenido es ficticio.
 | `SAEXIS` | Existencia por depósito | `CodProd`, `CodUbic`, `Existen` | 933 |
 | `SACLIE` | Clientes | `CodClie`, `Descrip`, `ID3` (RIF), `LimiteCred`, `Saldo`, `Activo` | 48 |
 
+### Pedidos de la web (Fase 7)
+
+Arrancan vacías (el seed no las llena); solo el agente escribe aquí, y siempre como **borrador**.
+
+| Tabla | Contenido | Columnas principales |
+|---|---|---|
+| `SAPEDIDO` | Cabecera del borrador | `NumeroD` (PW0000001...), `NumeroWeb` (id del pedido web, **UNIQUE**), `CodClie`, `Estado` (`B` = borrador), `Monto` USD, `Tasa` Bs/USD, `Notas` |
+| `SAITEMPED` | Renglones | `NumeroD`, `NroLinea`, `CodProd`, `Cantidad`, `Precio`, `TotalItem` |
+| `SQ_SAPEDIDO_WEB` | Secuencia del correlativo | (un hueco en la numeración es normal: lo deja un intento revertido) |
+
+El índice único de `NumeroWeb` es lo que impide que reintentar un pedido cree un segundo borrador. `scripts/saint-sandbox.sh reset` las vacía y reinicia la secuencia. Su mapeo está en la sección `order_draft` de `mapping.saint.yaml`.
+
 Invariante: `SAPROD.Existen` es la suma de `SAEXIS.Existen` de ese producto. `mutate` y el seed lo respetan.
 
 Algunos clientes quedan cerca o por encima de su límite de crédito, para probar la validación del carrito. Cerca del 5 % de los productos y algún cliente están inactivos.

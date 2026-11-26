@@ -25,6 +25,7 @@ type Config struct {
 	Sync      Sync      `yaml:"sync"`
 	Store     Store     `yaml:"store"`
 	Heartbeat Heartbeat `yaml:"heartbeat"`
+	Orders    Orders    `yaml:"orders"`
 	Log       Log       `yaml:"log"`
 }
 
@@ -70,6 +71,12 @@ type Heartbeat struct {
 	Interval time.Duration `yaml:"interval"`
 }
 
+// Orders: llevar los pedidos web al ERP como borradores (en cada ciclo de sincronización).
+type Orders struct {
+	Enabled bool `yaml:"enabled"`
+	Limit   int  `yaml:"limit"` // pedidos pendientes que se piden por ciclo (1 a 500)
+}
+
 // Log: nivel y formato de los logs (siempre a stderr).
 type Log struct {
 	Level  string `yaml:"level"`  // debug | info | warn | error
@@ -83,6 +90,7 @@ func Defaults() Config {
 		Sync:      Sync{Interval: 30 * time.Second, ReconcileInterval: 24 * time.Hour},
 		Store:     Store{Path: "agent.db"},
 		Heartbeat: Heartbeat{Interval: time.Minute},
+		Orders:    Orders{Enabled: true, Limit: 50},
 		Log:       Log{Level: "info", Format: "json"},
 	}
 }
@@ -178,6 +186,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Heartbeat.Interval < 5*time.Second {
 		bad("heartbeat.interval debe ser de al menos 5s (es %s)", c.Heartbeat.Interval)
+	}
+	if c.Orders.Limit < 1 || c.Orders.Limit > 500 {
+		bad("orders.limit debe estar entre 1 y 500 (es %d)", c.Orders.Limit)
 	}
 	if strings.TrimSpace(c.Store.Path) == "" {
 		bad("store.path es obligatoria")

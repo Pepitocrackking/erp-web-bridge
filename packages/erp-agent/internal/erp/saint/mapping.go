@@ -30,6 +30,7 @@ type Field struct {
 	Column   string  `yaml:"column"`
 	Lookup   *Lookup `yaml:"lookup"`
 	TrueWhen *int    `yaml:"true_when"` // para booleanos: valor de la columna que significa "activo"
+	Value    *string `yaml:"value"`     // valor fijo que el agente escribe en la columna (p. ej. el estado "borrador")
 }
 
 // Entity describe cómo leer una entidad (productos o clientes).
@@ -47,6 +48,9 @@ type Mapping struct {
 	ERP      string `yaml:"erp"`
 	Product  Entity `yaml:"product"`
 	Customer Entity `yaml:"customer"`
+	// OrderDraft dice dónde se escriben los pedidos web (solo borradores). Es opcional: sin él,
+	// el agente solo lee y los pedidos quedan pendientes.
+	OrderDraft *OrderDraft `yaml:"order_draft"`
 }
 
 var (
@@ -77,6 +81,11 @@ func ParseMapping(data []byte) (*Mapping, error) {
 	}
 	if err := m.Customer.validate("customer", customerFields, nil); err != nil {
 		return nil, err
+	}
+	if m.OrderDraft != nil {
+		if err := m.OrderDraft.validate(); err != nil {
+			return nil, err
+		}
 	}
 	return &m, nil
 }

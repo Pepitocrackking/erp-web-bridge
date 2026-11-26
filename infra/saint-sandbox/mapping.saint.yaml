@@ -53,5 +53,33 @@ customer:
     active:           { column: Activo, true_when: 1 }
   filter: null
 
+# Pedido web -> borrador en el ERP (Fase 7). El agente SOLO escribe en estas dos tablas, y siempre
+# como borrador: nunca en tablas fiscales (facturas, cuentas por cobrar...).
+#   - `status.value` es el valor fijo que marca el registro como borrador.
+#   - `number_sequence` genera el correlativo del borrador: prefix + el número con ceros a la izquierda.
+#   - `web_id` guarda el id del pedido web y debe tener índice ÚNICO en el ERP: es lo que impide
+#     que reintentar un pedido cree un borrador duplicado.
+order_draft:
+  header:
+    table: SAPEDIDO
+    number_sequence: { name: SQ_SAPEDIDO_WEB, prefix: PW, width: 7 }
+    fields:
+      number:        { column: NumeroD }
+      web_id:        { column: NumeroWeb }
+      customer_code: { column: CodClie }
+      total_usd:     { column: Monto }
+      exchange_rate: { column: Tasa }
+      notes:         { column: Notas }
+      status:        { column: Estado, value: B }
+  items:
+    table: SAITEMPED
+    fields:
+      number:         { column: NumeroD }
+      line:           { column: NroLinea }
+      sku:            { column: CodProd }
+      quantity:       { column: Cantidad }
+      unit_price_usd: { column: Precio }
+      line_total_usd: { column: TotalItem }
+
 # Campos que entran al hash de sincronización diferencial (manual del proyecto, sección 2.2).
 sync_hash_fields: [sku, price_usd, stock, name]

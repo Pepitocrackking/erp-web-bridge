@@ -4,9 +4,9 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 
 ## Posición
 - **Fase actual:** 7, Pedidos hacia el ERP
-- **Rama:** `phase-7/orders-to-erp` (creada desde `main` tras el merge del PR #7; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 7. La Fase 6 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 7.1
+- **Rama:** `phase-7/orders-to-erp` (sin push todavía)
+- **Última tarea completada:** 7.1 (el agente escribe los pedidos pendientes en el sandbox como borrador).
+- **Estado de la fase:** en curso. Siguiente tarea: 7.2
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -40,6 +40,15 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - **PWA:** service worker propio (`public/sw.js`): estáticos cache-first, `/catalogo` red-primero con caída a la misma URL guardada; el caché de páginas se vacía al pedir `/login` y al cerrar sesión (siempre usar `SignOutButton`). Lighthouse 11 PWA 100 %.
   - **Pruebas:** web 70, shared-types 100, API 175, RLS 48 y **45 E2E de Playwright** (`pnpm e2e` en `apps/web`; levanta la API en 3001 y la web en 3100; necesita Supabase **completo** y `pnpm db:reset`; no corren en el CI). `lib/sync-hash.ts` calcula el `sync_hash` igual que el agente Go (mismos vectores).
   - Backlog que quedó fuera: selector de organización (hoy se usa la primera membresía); pedidos hechos por el personal a nombre de un cliente; validar stock al crear pedidos; correo de aviso al aprobar un acceso; buscador en el desplegable de clientes (carga hasta 1000); `SUPABASE_JWT_ISSUER` fijado en producción.
+
+## Decisiones de la Fase 7 (tomadas al iniciar, sin tanda de preguntas: todas las propuestas por defecto)
+- Borrador en `SAPEDIDO` (cabecera, `NumeroWeb` UNIQUE = id del pedido web, `Estado`='B') y `SAITEMPED` (renglones), correlativo `PW0000001` con la secuencia `SQ_SAPEDIDO_WEB`. Mapeo en la sección `order_draft` de `mapping.saint.yaml` (ninguna columna en el código).
+- Interfaz `erp.OrderWriter` (aparte de `erp.Adapter`, que sigue siendo de solo lectura); la cumplen `saint` y `mock`. `*erp.RejectedError` = rechazo permanente (cliente o SKU inexistente o inactivo en el ERP); cualquier otro error es transitorio.
+- Paquete `internal/orders` (`Processor.Cycle`): de uno en uno y en orden, `limit` 50 (config `orders.enabled` / `orders.limit`); rechazo = se anota y se sigue; error transitorio = corta el ciclo. Se ejecuta dentro de cada ciclo del agente (`App.ordersCycle`), y su error hace fallar `-once`.
+- **No** se hace la página `/pedidos` del comprador (no está en el ROADMAP): 7.4 se cumple con el panel `/admin`.
+- Pendiente para 7.2: tras escribir el borrador, el agente debe llamar a `confirm` (hoy `Processor` NO confirma: por eso los pedidos siguen `pending_sync` y cada ciclo los vuelve a ver, con `Created=false`); un rechazo debe informarse a la API (endpoint nuevo `POST /v1/orders/:orderId/fail`).
+- Para 7.3: crear en el sandbox las tablas fiscales de ejemplo (`SAFACT`, `SAITEMFAC`, `SAACXC`), el login SQL `erp_agent` con GRANT solo a los borradores y DENY a las fiscales, la lista blanca en el código (`OrderDraft.WriteTables()`) y la prueba que intenta escribir en una fiscal.
+- Los datos de 7.1 se verificaron con una corrida real (org de prueba `e2e-fase7`, ya borrada): 2 borradores con `Estado`='B', 3 renglones cada uno, la segunda pasada no duplicó. Las pruebas de integración usan `SAINT_TEST_DSN='sqlserver://sa:Saint_Demo_2026%21@localhost:14330?database=SAINT_DEMO&encrypt=disable'` y limpian lo que escriben.
 
 ## Siguiente acción
 Ejecutar la tarea **7.1** del bloque `## Fase 7` de `docs/ROADMAP.md` (el agente consulta los pedidos pendientes y los escribe en el sandbox **solo como borrador**). Después 7.2 a 7.4 en orden y `phase-gate` con el Gate 7. Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion; abajo, lo que existe, lo que falta y mi propuesta por defecto (si no hay motivo para cambiarla, no preguntar).
@@ -131,4 +140,4 @@ Ejecutar la tarea **7.1** del bloque `## Fase 7` de `docs/ROADMAP.md` (el agente
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 fusionada (PR #7, CI en verde); rama de la Fase 7 creada con el relevo escrito.
+2026-11-26. Tarea 7.1 hecha (borradores en el sandbox). Falta 7.2 a 7.4 y el Gate 7.

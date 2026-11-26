@@ -141,3 +141,22 @@ func TestElEjemploDocumentadoEsValido(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 }
+
+func TestPedidosVienenActivadosPorDefectoYSeValidan(t *testing.T) {
+	c, err := Parse([]byte(minimo), noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Orders.Enabled || c.Orders.Limit != 50 {
+		t.Fatalf("orders = %+v, quiero activado y limit 50", c.Orders)
+	}
+	c, err = Parse([]byte(minimo+"orders: {enabled: false, limit: 10}\n"), noEnv)
+	if err != nil || c.Orders.Enabled || c.Orders.Limit != 10 {
+		t.Fatalf("err = %v, orders = %+v", err, c.Orders)
+	}
+	for _, lim := range []string{"0", "501", "-3"} {
+		if _, err := Parse([]byte(minimo+"orders: {limit: "+lim+"}\n"), noEnv); err == nil || !strings.Contains(err.Error(), "orders.limit") {
+			t.Fatalf("limit %s: err = %v", lim, err)
+		}
+	}
+}

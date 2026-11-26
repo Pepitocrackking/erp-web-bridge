@@ -34,6 +34,10 @@ store:
 heartbeat:
   interval: 1m # aviso de "sigo vivo" a la API (mínimo 5s)
 
+orders:
+  enabled: true # lleva los pedidos web al ERP como BORRADORES (nunca como documentos fiscales)
+  limit: 50 # pedidos pendientes que se piden por ciclo (1 a 500); se procesan uno a uno y en orden
+
 log:
   level: info # debug | info | warn | error
   format: json # json | text (a stderr)
