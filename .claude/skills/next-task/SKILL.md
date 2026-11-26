@@ -10,6 +10,7 @@ Ejecuta **una** tarea del ROADMAP, la verifica y la marca. El checklist del repo
 ## Pasos
 
 1. **Ubícate.** Lee `docs/STATE.md`. Luego lee en `docs/ROADMAP.md` solo el bloque de la fase actual (desde `## Fase N` hasta el siguiente `## Fase`). No leas el archivo entero.
+   **Si es la primera tarea de la fase:** analiza el bloque entero de la fase y reúne TODAS las dudas y decisiones abiertas (herramientas a instalar, alternativas, ambigüedades de criterios). Hazlas juntas, en una sola tanda con AskUserQuestion, antes de escribir código. Si no hay dudas reales, no preguntes nada. Con las respuestas, la fase corre sola hasta el Gate: no vuelvas a preguntar.
 2. **Comprueba la rama.** `git branch --show-current` debe ser la rama de la fase (`phase-N/<slug>`). Si no existe, créala desde `main` actualizado. Si la fase anterior sigue sin mergear, pregunta al usuario antes de ramificar. Nunca trabajes en `main`.
 3. **Elige la tarea.** La primera `- [ ] **N.M**` de la fase. Reformula en una frase qué debe quedar funcionando y cómo se comprueba. Si el criterio es ambiguo, pregunta antes de escribir código.
 4. **Implementa en pequeño.** Una tarea, un alcance. No agregues funcionalidades que no estén en el ROADMAP. Para lógica pura (hashes, conversión de moneda, diffs, validaciones), escribe primero la prueba y verifica que falla por la razón correcta.
@@ -19,7 +20,7 @@ Ejecuta **una** tarea del ROADMAP, la verifica y la marca. El checklist del repo
    Termina el mensaje con la línea `Co-Authored-By` indicada por el entorno.
 7. **Actualiza STATE.md** (última tarea completada y siguiente acción) y súmalo al mismo commit.
 8. **Decide cómo seguir.**
-   - Si quedan tareas pendientes en la fase: pregunta si continúas con la siguiente o paras.
+   - Si quedan tareas pendientes en la fase: continúa con la siguiente sin preguntar (el usuario resuelve todas las dudas al inicio de la fase).
    - Si todas las tareas de la fase están marcadas: **invoca `phase-gate`**. No hagas push por tu cuenta.
 
 ## Reglas
