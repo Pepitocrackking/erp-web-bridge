@@ -24,6 +24,11 @@ export default tseslint.config(
     },
   },
   {
+    // El service worker de la PWA corre en el navegador, no en Node: globales de worker.
+    files: ["apps/web/public/sw.js"],
+    languageOptions: { globals: { ...globals.serviceworker } },
+  },
+  {
     // Configs de herramientas en CommonJS (jest.config.js): require() es legitimo.
     files: ["**/*.config.js"],
     rules: { "@typescript-eslint/no-require-imports": "off" },

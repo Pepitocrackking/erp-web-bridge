@@ -5,14 +5,21 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** 6.6 (simulador de ERP).
-- **Estado de la fase:** en curso. Siguiente tarea: 6.7 (esfuerzo medio: PWA instalable con catálogo en caché). Después el Gate 6 (`phase-gate`).
+- **Última tarea completada:** 6.7 (PWA instalable). **Las 7 tareas de la Fase 6 están hechas.**
+- **Estado de la fase:** lista para el Gate 6. Siguiente acción: invocar `phase-gate` (esfuerzo medio). Pendiente del Gate: **Lighthouse PWA** (ver "Hecho en la 6.7"), escribir `docs/evidence/phase-6.md`, y la rama `phase-6/web` aún no se ha subido (8 commits locales).
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
 - **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
 - **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
 - **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.7 (para no rehacerlo)
+- PWA con **service worker propio** (`apps/web/public/sw.js`, sin librerías) y `next.config.mjs` (cabeceras de `/sw.js`: sin caché del navegador, `Service-Worker-Allowed: /`). Manifiesto `app/manifest.ts` (`start_url /catalogo`, `standalone`, tema `#047857`), iconos generados al compilar por `app/pwa-icon/[name]/route.tsx` (`icon-192.png`, `icon-512.png`, `maskable-512.png`; sus rutas terminan en `.png` para que el proxy de sesión las ignore), `/offline` (página sin conexión), `app/pwa.tsx` (`RegisterServiceWorker` solo en producción, `OfflineBanner`, `clearPrivateCache`), y `app/sign-out-button.tsx` (**todas** las páginas usan `SignOutButton`, que vacía el caché privado antes de salir; no volver a escribir `<form action={signOut}>` a mano).
+- Estrategia del SW: `_next/static` cache-first; navegaciones a `/catalogo` red-primero con 5 s de espera y caída a la **misma URL** guardada (respuesta marcada `x-erpwb-cache: hit`), si no, `/offline`; tope de 30 páginas. **Privacidad:** el caché de páginas se vacía en cuanto se pide `/login` (también por RSC) y al recibir el mensaje `clear-private`; nunca se guarda una respuesta redirigida, ni POST, ni RSC. Hay pruebas de que otra persona no ve el catálogo guardado de la anterior.
+- ESLint: `eslint.config.mjs` da globales de service worker a `apps/web/public/sw.js`.
+- E2E `e2e/pwa.spec.ts` (7 pruebas): manifiesto e iconos reales (PNG con el tamaño declarado), instalabilidad con el CDP de Chrome (`Page.getInstallabilityErrors` = vacío), alcance del SW, catálogo sin conexión (`context.setOffline`), dos de privacidad y visitante sin sesión. **Total E2E: 45.**
+- **Lighthouse (criterio del Gate):** Lighthouse ≥ 12 **ya no tiene la categoría PWA** (se eliminó); para el Gate usar Lighthouse 11 (`npx lighthouse@11 --only-categories=pwa`) contra `next start` con `DEMO_MODE`, con Chrome/Edge del sistema (`CHROME_PATH`), y dejar la salida en `docs/evidence/phase-6.md` junto a la comprobación de instalabilidad por CDP (que es el mismo criterio que usa Chrome).
 
 ### Hecho en la 6.6 (para no rehacerlo)
 - Migración `..0900_realtime_products.sql`: `products` entra en la publicación de Realtime (RLS decide qué eventos recibe cada usuario). La prueba de RLS de la publicación ahora exige `products`.
@@ -163,4 +170,4 @@ Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 en curso: tareas 6.1 a 6.6 hechas (38 E2E, 70 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde).
+2026-11-26. Fase 6: las 7 tareas hechas (45 E2E, 70 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde). Falta el Gate 6.

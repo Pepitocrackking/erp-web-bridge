@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { fetchActiveCustomers, fetchPendingRequests, suggestCustomer } from "../../../lib/access";
 import { fetchMembership } from "../../../lib/catalog";
 import { createClient } from "../../../lib/supabase/server";
-import { signOut } from "../../login/actions";
 import { approveRequest, rejectRequest } from "./actions";
+import { SignOutButton } from "../../sign-out-button";
 
 export const metadata = { title: "Solicitudes de acceso · ERP Web Bridge" };
 
@@ -44,9 +44,7 @@ export default async function RequestsPage({
           <Link href="/catalogo" className="underline">
             Ir al catálogo
           </Link>
-          <form action={signOut}>
-            <button className="underline">Salir</button>
-          </form>
+          <SignOutButton className="underline" />
         </div>
       </header>
 

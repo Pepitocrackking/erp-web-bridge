@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { fetchMembership } from "../../lib/catalog";
 import { createClient } from "../../lib/supabase/server";
-import { signOut } from "../login/actions";
 import { CartView } from "./cart-view";
+import { SignOutButton } from "../sign-out-button";
 
 export const metadata = { title: "Carrito · ERP Web Bridge" };
 
@@ -29,9 +29,7 @@ export default async function CartPage() {
           <Link href="/catalogo" className="underline">
             Catálogo
           </Link>
-          <form action={signOut}>
-            <button className="underline">Salir</button>
-          </form>
+          <SignOutButton className="underline" />
         </div>
       </header>
       <CartView userId={user.id} orgName={membership.orgName} />

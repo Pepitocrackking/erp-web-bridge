@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { fetchMembership } from "../../../lib/catalog";
 import { simulatorConfig, type SimRow } from "../../../lib/simulator";
 import { createClient } from "../../../lib/supabase/server";
-import { signOut } from "../../login/actions";
 import { Simulator } from "./simulator";
+import { SignOutButton } from "../../sign-out-button";
 
 export const metadata = { title: "Simulador de ERP · ERP Web Bridge" };
 
@@ -65,9 +65,7 @@ export default async function SimulatorPage() {
           <Link href="/catalogo" className="underline">
             Catálogo
           </Link>
-          <form action={signOut}>
-            <button className="underline">Salir</button>
-          </form>
+          <SignOutButton className="underline" />
         </nav>
       </header>
       {enabled ? (

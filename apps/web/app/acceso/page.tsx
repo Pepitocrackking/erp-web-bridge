@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { fetchMyRequests } from "../../lib/access";
 import { fetchMembership } from "../../lib/catalog";
 import { createClient } from "../../lib/supabase/server";
-import { signOut } from "../login/actions";
 import { AccessForm } from "./access-form";
+import { SignOutButton } from "../sign-out-button";
 
 export const metadata = { title: "Solicitar acceso · ERP Web Bridge" };
 
@@ -36,9 +36,7 @@ export default async function AccessPage({
           <h1 className="text-2xl font-bold">Acceso al catálogo</h1>
           <p className="text-sm text-slate-600">Sesión: {user.email}</p>
         </div>
-        <form action={signOut}>
-          <button className="text-sm underline">Salir</button>
-        </form>
+        <SignOutButton className="text-sm underline" />
       </header>
 
       {requests.length > 0 && (

@@ -10,8 +10,8 @@ import {
 import { fetchMembership } from "../../lib/catalog";
 import { simulatorConfig } from "../../lib/simulator";
 import { createClient } from "../../lib/supabase/server";
-import { signOut } from "../login/actions";
 import { AdminDashboard } from "./dashboard";
+import { SignOutButton } from "../sign-out-button";
 
 export const metadata = { title: "Panel · ERP Web Bridge" };
 
@@ -63,9 +63,7 @@ export default async function AdminPage() {
           <Link href="/catalogo" className="underline">
             Catálogo
           </Link>
-          <form action={signOut}>
-            <button className="underline">Salir</button>
-          </form>
+          <SignOutButton className="underline" />
         </nav>
       </header>
       <AdminDashboard

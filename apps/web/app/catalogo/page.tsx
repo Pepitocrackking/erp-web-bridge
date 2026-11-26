@@ -9,10 +9,10 @@ import {
   type CatalogParams,
 } from "../../lib/catalog";
 import { createClient } from "../../lib/supabase/server";
-import { signOut } from "../login/actions";
 import { CartLink } from "./cart-link";
 import { CatalogLive } from "./catalog-live";
 import { ProductCard } from "./product-card";
+import { SignOutButton } from "../sign-out-button";
 
 export const metadata = { title: "Catálogo · ERP Web Bridge" };
 
@@ -69,9 +69,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
               Solicitudes de acceso
             </Link>
           )}
-          <form action={signOut}>
-            <button className="underline">Salir</button>
-          </form>
+          <SignOutButton className="underline" />
         </div>
       </header>
 

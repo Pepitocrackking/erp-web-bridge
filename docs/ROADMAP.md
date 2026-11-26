@@ -129,7 +129,7 @@ Rama: `phase-6/web`
 - [x] **6.4** Panel admin: tasa de cambio, clientes, pedidos y estado de sincronización en tiempo real (Supabase Realtime).
 - [x] **6.5** "Entrar como Administrador Demo" en 1 clic.
 - [x] **6.6** Simulador de ERP: tabla editable de inventario que dispara una sincronización real.
-- [ ] **6.7** PWA instalable con catálogo en caché.
+- [x] **6.7** PWA instalable con catálogo en caché.
 
 ### Gate 6
 - [ ] E2E con Playwright en verde: demo, edición en el simulador, el catálogo cambia en vivo.
