@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 2, Monorepo y CI
 - **Rama:** `phase-2/monorepo-ci` (creada desde `main` tras el merge del PR #2; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 2. La Fase 1 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 2.1
+- **Última tarea completada:** 2.1 (workspace pnpm + Turborepo con `apps/web`, `apps/api`, `packages/shared-types`; build, test y lint en verde y `GET /health` verificado con la API compilada). La Fase 1 está completa y fusionada.
+- **Estado de la fase:** en curso. Siguiente tarea: 2.2
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -17,9 +17,16 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Cómo levantarlo: `bash scripts/saint-sandbox.sh up` (ver "Cómo levantar el proyecto").
 
 ## Siguiente acción
-Ejecutar la tarea **2.1**: workspace `pnpm` con Turborepo en la raíz: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `apps/web`, `apps/api` y `packages/shared-types`.
+Ejecutar la tarea **2.2**: módulo Go en `packages/erp-agent` con estructura base (`cmd/`, `internal/`). Debe cumplir `go build ./... && go test ./...`.
 
-Detalles técnicos para hacerlo bien a la primera:
+Hecho en 2.1 (decisiones que condicionan lo siguiente):
+- La API usa **NestJS 11.x** (CommonJS), no 12: Nest 12 es solo ESM y rompe jest/ts-jest y el consumo de `shared-types` (CJS). No subir a 12 sin migrar todo a ESM.
+- Cada paquete tiene `build`, `test` (jest + ts-jest) y `lint` (por ahora `tsc --noEmit`; ESLint/Prettier llegan en 2.5).
+- `pnpm-workspace.yaml` tiene `allowBuilds: '@parcel/watcher': false` (dependencia nativa opcional de jest, solo para `--watch`); sin eso `pnpm install` falla con `ERR_PNPM_IGNORED_BUILDS`.
+- pnpm 12 aplica una política de edad mínima de releases: una versión recién publicada puede hacer fallar `pnpm install`; en ese caso, regenerar el lockfile.
+- Los comandos con heredocs largos fallan en este shell: crear archivos con Write.
+
+Detalles técnicos (originales de la fase):
 - Entorno: Node v24.14.1, pnpm 12.14.0, Go 1.26.5, Docker 29.9.3, Windows. Fija `packageManager` y `engines` en el `package.json` raíz.
 - Scripts raíz: `build`, `test`, `lint`, `format`, delegados a `turbo run`. Cada paquete debe tener `build` y `test` reales, porque el Gate 2 exige `pnpm install && pnpm build && pnpm test` en verde desde un clon limpio.
 - Estructura (manual, sección 4): `apps/web` (Next.js App Router, TypeScript, Tailwind), `apps/api` (NestJS), `packages/shared-types` (Zod), `packages/erp-agent` (Go, tarea 2.2, fuera de pnpm).

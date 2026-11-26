@@ -53,7 +53,7 @@ Objetivo: un SQL Server en contenedor con las tablas básicas de Saint y datos r
 ## Fase 2: Monorepo y CI
 Rama: `phase-2/monorepo-ci`
 
-- [ ] **2.1** Workspace `pnpm` con Turborepo: `apps/web`, `apps/api`, `packages/shared-types`.
+- [x] **2.1** Workspace `pnpm` con Turborepo: `apps/web`, `apps/api`, `packages/shared-types`.
 - [ ] **2.2** Módulo Go en `packages/erp-agent` con estructura base (`cmd/`, `internal/`).
 - [ ] **2.3** `shared-types`: contratos DTO (producto, cliente, pedido, lote de sincronización) con validación Zod.
 - [ ] **2.4** GitHub Actions: lint, test y build de TypeScript y de Go en cada PR.
