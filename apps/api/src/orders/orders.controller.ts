@@ -14,12 +14,18 @@ import {
   confirmOrderInputSchema,
   confirmOrderResultSchema,
   createOrderInputSchema,
+  failOrderInputSchema,
+  failOrderResultSchema,
   pendingOrdersSchema,
+  retryOrderResultSchema,
   webOrderSchema,
   pendingOrdersQuerySchema,
   type ConfirmOrderInput,
   type ConfirmOrderResult,
   type CreateOrderInput,
+  type FailOrderInput,
+  type FailOrderResult,
+  type RetryOrderResult,
   type PendingOrders,
   type PendingOrdersQuery,
   type WebOrder,
@@ -67,6 +73,32 @@ export class OrdersController {
     @Body(new ZodValidationPipe(createOrderInputSchema)) body: CreateOrderInput,
   ): Promise<WebOrder> {
     return this.orders.create(orgId, user.userId, body);
+  }
+
+  @Post(":orderId/retry")
+  @HttpCode(200)
+  @RateLimit("strict")
+  @ApiEndpoint({
+    tag: "orders",
+    summary: "Reintentar un pedido en error",
+    description:
+      "Lo devuelve a la cola (error → pending_sync) y borra el motivo del fallo; el agente lo recoge " +
+      "en su próximo ciclo. Solo el personal (owner, admin o staff). Un pedido que ya estaba pendiente " +
+      "devuelve changed=false; en cualquier otro estado, 409. No vuelve a validar el crédito.",
+    auth: "user",
+    response: {
+      status: 200,
+      description: "Pedido de nuevo pendiente de enviar al ERP",
+      schema: retryOrderResultSchema,
+    },
+    errors: [400, 403, 404, 409],
+  })
+  retry(
+    @Param("orgId", new ParseUUIDPipe()) orgId: string,
+    @Param("orderId", new ParseUUIDPipe()) orderId: string,
+    @CurrentUser() user: UserContext,
+  ): Promise<RetryOrderResult> {
+    return this.orders.retry(orgId, user.userId, orderId);
   }
 }
 
@@ -125,5 +157,32 @@ export class AgentOrdersController {
     @Body(new ZodValidationPipe(confirmOrderInputSchema)) body: ConfirmOrderInput,
   ): Promise<ConfirmOrderResult> {
     return this.orders.confirm(agent.orgId, orderId, body.erp_order_reference);
+  }
+
+  @Post(":orderId/fail")
+  @HttpCode(200)
+  @ApiEndpoint({
+    tag: "orders",
+    summary: "Informar que el ERP no puede aceptar el pedido",
+    description:
+      "Para fallos permanentes (cliente o producto inexistente o inactivo en el ERP): el pedido pasa a " +
+      "error con el motivo, que el panel muestra. Los fallos transitorios no se informan: el agente " +
+      "reintenta solo. Idempotente: si ya estaba en error devuelve duplicate=true y conserva el primer " +
+      "motivo. En cualquier otro estado, 409.",
+    auth: "agent",
+    body: failOrderInputSchema,
+    response: {
+      status: 200,
+      description: "Pedido marcado con error (o ya lo estaba)",
+      schema: failOrderResultSchema,
+    },
+    errors: [400, 404, 409],
+  })
+  fail(
+    @Agent() agent: AgentContext,
+    @Param("orderId", new ParseUUIDPipe()) orderId: string,
+    @Body(new ZodValidationPipe(failOrderInputSchema)) body: FailOrderInput,
+  ): Promise<FailOrderResult> {
+    return this.orders.fail(agent.orgId, orderId, body.error_detail);
   }
 }

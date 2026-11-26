@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/config"
+	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/erp"
+	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/erp/mock"
 )
 
 type cloud struct {
@@ -21,6 +24,10 @@ type cloud struct {
 	srv        *httptest.Server
 	batches    []map[string]any
 	heartbeats []map[string]any
+	pending    []map[string]any // pedidos que devuelve GET /v1/orders/pending
+	orderGets  int
+	confirmed  map[string]string // id del pedido -> referencia con la que se confirmó
+	failed     map[string]string // id del pedido -> motivo informado
 }
 
 func newCloud(t *testing.T) *cloud {
@@ -32,10 +39,36 @@ func newCloud(t *testing.T) *cloud {
 			w.WriteHeader(401)
 			return
 		}
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/orders/pending") {
+			c.orderGets++
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{"orders": append([]map[string]any{}, c.pending...)})
+			return
+		}
 		raw, _ := io.ReadAll(r.Body)
 		var m map[string]any
 		json.Unmarshal(raw, &m)
 		w.Header().Set("Content-Type", "application/json")
+		if parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/"); len(parts) == 4 && parts[1] == "orders" {
+			id, action := parts[2], parts[3]
+			if c.confirmed == nil {
+				c.confirmed, c.failed = map[string]string{}, map[string]string{}
+			}
+			if action == "confirm" {
+				c.confirmed[id], _ = m["erp_order_reference"].(string)
+			} else {
+				c.failed[id], _ = m["error_detail"].(string)
+			}
+			kept := c.pending[:0:0]
+			for _, o := range c.pending { // ya no está pendiente
+				if o["id"] != id {
+					kept = append(kept, o)
+				}
+			}
+			c.pending = kept
+			json.NewEncoder(w).Encode(map[string]any{"id": id, "status": "synced_to_erp", "erp_order_reference": m["erp_order_reference"], "duplicate": false})
+			return
+		}
 		if strings.HasSuffix(r.URL.Path, "/heartbeat") {
 			c.heartbeats = append(c.heartbeats, m)
 			io.WriteString(w, `{"ok":true,"server_time":"2026-11-26T00:00:00.000Z"}`)
@@ -61,6 +94,10 @@ func cfgFor(t *testing.T, c *cloud, dbPath string) *config.Config {
 	cfg.ERP.Mock = config.Mock{Products: 30, Customers: 4, Seed: 1}
 	cfg.Store.Path = dbPath
 	return &cfg
+}
+
+func erpProduct(sku string) erp.Product {
+	return erp.Product{SKU: sku, Name: "PRODUCTO DE PRUEBA", PriceUSD: 10, Stock: 100, Active: true}
 }
 
 func discard() *bytes.Buffer { return &bytes.Buffer{} }
@@ -166,5 +203,147 @@ func TestLoggerEsJSONConVersionYRespetaElNivel(t *testing.T) {
 	}
 	if m["msg"] != "sale" || m["level"] != "WARN" || m["agent_version"] == nil || m["clave"] != float64(1) {
 		t.Fatalf("log = %v", m)
+	}
+}
+
+func TestOnceLlevaLosPedidosPendientesAlERPComoBorradores(t *testing.T) {
+	c := newCloud(t)
+	c.pending = []map[string]any{
+		{"id": "11111111-1111-4111-8111-111111111111", "customer_code": "C00002", "status": "pending_sync",
+			"total_usd": 20.0, "exchange_rate_used": 40.0, "erp_order_reference": nil, "notes": nil, "created_at": "2026-11-26T00:00:00.000Z",
+			"items": []map[string]any{{"sku": "P00001", "quantity": 2, "unit_price_usd": 10.0}}},
+		{"id": "22222222-2222-4222-8222-222222222222", "customer_code": "NO-EXISTE", "status": "pending_sync",
+			"total_usd": 5.0, "exchange_rate_used": 40.0, "erp_order_reference": nil, "notes": nil, "created_at": "2026-11-26T00:00:01.000Z",
+			"items": []map[string]any{{"sku": "P00001", "quantity": 1, "unit_price_usd": 5.0}}},
+	}
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	cfg.ERP.Mock.Customers = 10 // C00002 existe; si por azar está inactivo el test lo avisa abajo
+	log := NewLogger(discard(), cfg.Log)
+
+	var closers []func() error
+	a, err := New(context.Background(), cfg, log, &closers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		for _, f := range closers {
+			f()
+		}
+	}()
+	m := a.erp.(*mock.Adapter)
+	m.Add(erpProduct("P00001")) // activo seguro
+	if err := a.once(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	// El segundo ciclo ya no ve pedidos pendientes: nada nuevo, nada duplicado.
+	if err := a.once(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	drafts := m.Drafts()
+	if len(drafts) != 1 || drafts[0].Order.CustomerCode != "C00002" || drafts[0].Order.Lines[0].Quantity != 2 {
+		t.Fatalf("borradores = %+v, quiero 1 (el del cliente que existe) sin duplicar", drafts)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.orderGets < 2 {
+		t.Fatalf("consultas de pedidos = %d, quiero una por ciclo", c.orderGets)
+	}
+	// El pedido bueno se confirmó con la referencia del borrador; el del cliente inexistente se informó como error.
+	if got := c.confirmed["11111111-1111-4111-8111-111111111111"]; got != drafts[0].Reference {
+		t.Fatalf("confirmado con %q, la referencia del borrador es %q", got, drafts[0].Reference)
+	}
+	if got := c.failed["22222222-2222-4222-8222-222222222222"]; !strings.Contains(got, "NO-EXISTE") {
+		t.Fatalf("motivo informado = %q, quiero que nombre al cliente inexistente", got)
+	}
+	if len(c.confirmed) != 1 || len(c.failed) != 1 {
+		t.Fatalf("confirmados = %v, fallidos = %v", c.confirmed, c.failed)
+	}
+}
+
+func TestPedidosDesactivadosNoConsultanLaNube(t *testing.T) {
+	c := newCloud(t)
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	cfg.Orders.Enabled = false
+	log := NewLogger(discard(), cfg.Log)
+	if err := Run(context.Background(), cfg, log, Options{Once: true}); err != nil {
+		t.Fatal(err)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.orderGets != 0 {
+		t.Fatalf("consultas de pedidos = %d, quiero 0", c.orderGets)
+	}
+}
+
+// writerConLogin simula un ERP cuyo login puede (o no) escribir fuera de los borradores.
+type writerConLogin struct {
+	*mock.Adapter
+	verifica error // lo que devuelve VerifyWriteIsolation
+	veces    int
+}
+
+func (w *writerConLogin) VerifyWriteIsolation(context.Context) error {
+	w.veces++
+	return w.verifica
+}
+
+func TestConUnLoginInseguroNoSeConsultanNiSeEscribenPedidos(t *testing.T) {
+	c := newCloud(t)
+	c.pending = []map[string]any{
+		{"id": "11111111-1111-4111-8111-111111111111", "customer_code": "C00002", "status": "pending_sync",
+			"total_usd": 10.0, "exchange_rate_used": 40.0, "erp_order_reference": nil, "notes": nil, "created_at": "2026-11-26T00:00:00.000Z",
+			"items": []map[string]any{{"sku": "P00001", "quantity": 1, "unit_price_usd": 10.0}}},
+	}
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	var closers []func() error
+	a, err := New(context.Background(), cfg, NewLogger(discard(), cfg.Log), &closers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		for _, f := range closers {
+			f()
+		}
+	}()
+	m := a.erp.(*mock.Adapter)
+	m.Add(erpProduct("P00001"))
+	w := &writerConLogin{Adapter: m, verifica: &erp.UnsafeLoginError{Login: "sa", Problems: []string{"es sysadmin"}}}
+	a.erp = w
+	a.orders.Writer = w
+
+	// Login que puede escribir fuera de los borradores: el ciclo falla y NO toca la nube ni el ERP.
+	if err := a.once(context.Background(), false); err == nil || !strings.Contains(err.Error(), "puede escribir fuera de los borradores") {
+		t.Fatalf("err = %v, quiero el aviso del login inseguro", err)
+	}
+	c.mu.Lock()
+	gets := c.orderGets
+	c.mu.Unlock()
+	if gets != 0 || len(m.Drafts()) != 0 {
+		t.Fatalf("consultas de pedidos = %d, borradores = %d: con un login inseguro no debe pasar nada", gets, len(m.Drafts()))
+	}
+
+	// Un error de conexión al verificar tampoco deja escribir (no se sabe si es seguro), y se reintenta.
+	w.verifica = errors.New("conexión rechazada")
+	if err := a.once(context.Background(), false); err == nil {
+		t.Fatal("sin poder verificar el login no debe escribir")
+	}
+	if len(m.Drafts()) != 0 {
+		t.Fatal("se escribió un borrador sin verificar el login")
+	}
+
+	// Se corrige el login: el siguiente ciclo verifica y trabaja, y no vuelve a verificar cada vez.
+	w.verifica = nil
+	if err := a.once(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Drafts()) != 1 {
+		t.Fatalf("borradores = %d, quiero 1", len(m.Drafts()))
+	}
+	veces := w.veces
+	if err := a.once(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if w.veces != veces {
+		t.Fatalf("verificó el login %d veces más: una vez aprobado no hay que repetirlo", w.veces-veces)
 	}
 }

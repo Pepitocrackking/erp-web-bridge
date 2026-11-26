@@ -1,7 +1,7 @@
 "use server";
 
 import { formatBs } from "@erp-web-bridge/shared-types";
-import { parseRateInput } from "../../lib/admin";
+import { isOrderId, parseRateInput, retryOutcome } from "../../lib/admin";
 import { apiUrl } from "../../lib/api-url";
 import { fetchMembership } from "../../lib/catalog";
 import type { FormState } from "../../lib/form-state";
@@ -44,6 +44,49 @@ export async function setExchangeRate(_prev: FormState, formData: FormData): Pro
     if (response.status === 429) return { error: "Demasiados cambios seguidos. Espera un minuto." };
     if (response.status === 403) return { error: "Solo un administrador puede cambiar la tasa." };
     return { error: "No se pudo guardar la tasa. Inténtalo de nuevo." };
+  } catch {
+    return { error: "No se pudo contactar al servidor. Inténtalo de nuevo." };
+  }
+}
+
+/**
+ * Devuelve a la cola un pedido en error (el personal ya corrigió la causa, p. ej. dio de alta el
+ * cliente en el ERP). Lo hace la API con el JWT de la sesión: ella comprueba que sea personal de la
+ * organización y que el pedido siga en error. El cambio llega al panel por Realtime.
+ */
+export async function retryOrder(_prev: FormState, formData: FormData): Promise<FormState> {
+  const orderId = String(formData.get("orderId") ?? "");
+  if (!isOrderId(orderId)) return { error: "Pedido inválido." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Tu sesión expiró. Entra de nuevo." };
+  const membership = await fetchMembership(supabase, user.id);
+  if (!membership || membership.role === "customer") {
+    return { error: "Solo el personal de la empresa puede reintentar pedidos." };
+  }
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return { error: "Tu sesión expiró. Entra de nuevo." };
+
+  try {
+    const response = await fetch(
+      `${apiUrl()}/v1/orgs/${membership.orgId}/orders/${orderId}/retry`,
+      {
+        method: "POST",
+        headers: { authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    const body = (await response.json().catch(() => null)) as {
+      status?: string;
+      changed?: boolean;
+    } | null;
+    return retryOutcome(response.status, body);
   } catch {
     return { error: "No se pudo contactar al servidor. Inténtalo de nuevo." };
   }

@@ -38,6 +38,46 @@ const ORDER_LABELS: Record<string, string> = {
 };
 export const orderStatusLabel = (status: string) => ORDER_LABELS[status] ?? status;
 
+/** Un id de pedido es un UUID; la acción de reintento lo comprueba antes de armar la URL de la API. */
+export const isOrderId = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+/** Solo un pedido en error se puede reintentar desde el panel. */
+export const canRetryOrder = (status: string) => status === "error";
+
+/**
+ * Motivo del error de un pedido tal como lo ve el personal. Un pedido en error siempre muestra
+ * algo (aunque el agente no mandara detalle); en otros estados solo si hay un motivo guardado.
+ */
+export function orderErrorText(status: string, detail: string | null): string | null {
+  const text = detail?.trim();
+  if (text) return text;
+  return status === "error" ? "El ERP no aceptó el pedido (sin más detalle)." : null;
+}
+
+/** Traduce la respuesta de POST /v1/orgs/:orgId/orders/:orderId/retry a un mensaje para el personal. */
+export function retryOutcome(
+  status: number,
+  body: { status?: string; changed?: boolean } | null,
+): { error: string | null; info?: string } {
+  if (status === 200) {
+    return body?.changed === false
+      ? { error: null, info: "El pedido ya estaba pendiente de enviar al ERP." }
+      : {
+          error: null,
+          info: "El pedido volvió a la cola: el agente lo enviará al ERP en su próximo ciclo.",
+        };
+  }
+  if (status === 403) return { error: "Solo el personal de la empresa puede reintentar pedidos." };
+  if (status === 404) return { error: "No se encontró el pedido." };
+  if (status === 409) {
+    const now = body?.status ? orderStatusLabel(body.status) : "otro estado";
+    return { error: `El pedido ya no está en error (ahora: ${now}), no se puede reintentar.` };
+  }
+  if (status === 429) return { error: "Demasiados intentos seguidos. Espera un minuto." };
+  return { error: "No se pudo reintentar el pedido. Inténtalo de nuevo." };
+}
+
 const ENTITY_LABELS: Record<string, string> = {
   products: "Productos",
   customers: "Clientes",

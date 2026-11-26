@@ -8,7 +8,9 @@ import {
   customerAvailableUsd,
   fetchCustomers,
   fetchOrgStatus,
+  canRetryOrder,
   mergeById,
+  orderErrorText,
   orderStatusLabel,
   syncEntityLabel,
   toOrderRow,
@@ -22,6 +24,7 @@ import {
 } from "../../lib/admin";
 import { authorizeRealtime, createClient } from "../../lib/supabase/client";
 import { RateForm } from "./rate-form";
+import { RetryOrderButton } from "./retry-order-button";
 
 export interface DashboardData {
   org: OrgStatus;
@@ -255,14 +258,22 @@ export function AdminDashboard({
                     </td>
                     <td>
                       <span
+                        data-testid="order-status"
                         className={`rounded px-2 py-0.5 text-xs font-medium ${ORDER_BADGE[o.status] ?? "bg-slate-200"}`}
                       >
                         {orderStatusLabel(o.status)}
                       </span>
                       {o.erpReference && (
-                        <span className="ml-1 text-xs text-slate-600">{o.erpReference}</span>
+                        <span data-testid="order-ref" className="ml-1 text-xs text-slate-600">
+                          {o.erpReference}
+                        </span>
                       )}
-                      {o.errorDetail && <p className="text-xs text-red-700">{o.errorDetail}</p>}
+                      {orderErrorText(o.status, o.errorDetail) && (
+                        <p data-testid="order-error" className="mt-1 text-xs text-red-700">
+                          <strong>Motivo:</strong> {orderErrorText(o.status, o.errorDetail)}
+                        </p>
+                      )}
+                      {canRetryOrder(o.status) && <RetryOrderButton orderId={o.id} />}
                     </td>
                     <td>
                       <When iso={o.createdAt} />

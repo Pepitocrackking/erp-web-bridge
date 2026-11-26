@@ -29,6 +29,7 @@ type Adapter struct {
 	products  map[string]erp.Product
 	customers map[string]erp.Customer
 	step      int
+	drafts    map[string]Draft // pedidos web guardados, por id del pedido
 }
 
 var _ erp.Adapter = (*Adapter)(nil)

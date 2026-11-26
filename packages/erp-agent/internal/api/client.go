@@ -140,11 +140,22 @@ func (c *Client) Heartbeat(ctx context.Context, queueDepth int, lastError string
 }
 
 func (c *Client) post(ctx context.Context, path string, body []byte) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+path, bytes.NewReader(body))
+	return c.do(ctx, http.MethodPost, path, body)
+}
+
+// do hace una petición saliente y devuelve el cuerpo de una respuesta 2xx; el resto, un *Error.
+func (c *Client) do(ctx context.Context, method, path string, body []byte) ([]byte, error) {
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, rd)
 	if err != nil {
 		return nil, &Error{Status: http.StatusBadRequest, Message: err.Error(), Err: err}
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.Header.Set("x-api-key", c.APIKey)
 	req.Header.Set("User-Agent", "erp-agent/"+c.AgentVersion)
 

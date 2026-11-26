@@ -53,6 +53,30 @@ Montos en USD. Todo el contenido es ficticio.
 | `SAEXIS` | Existencia por depósito | `CodProd`, `CodUbic`, `Existen` | 933 |
 | `SACLIE` | Clientes | `CodClie`, `Descrip`, `ID3` (RIF), `LimiteCred`, `Saldo`, `Activo` | 48 |
 
+### Pedidos de la web (Fase 7)
+
+Arrancan vacías (el seed no las llena); solo el agente escribe aquí, y siempre como **borrador**.
+
+| Tabla | Contenido | Columnas principales |
+|---|---|---|
+| `SAPEDIDO` | Cabecera del borrador | `NumeroD` (PW0000001...), `NumeroWeb` (id del pedido web, **UNIQUE**), `CodClie`, `Estado` (`B` = borrador), `Monto` USD, `Tasa` Bs/USD, `Notas` |
+| `SAITEMPED` | Renglones | `NumeroD`, `NroLinea`, `CodProd`, `Cantidad`, `Precio`, `TotalItem` |
+| `SQ_SAPEDIDO_WEB` | Secuencia del correlativo | (un hueco en la numeración es normal: lo deja un intento revertido) |
+
+El índice único de `NumeroWeb` es lo que impide que reintentar un pedido cree un segundo borrador. `scripts/saint-sandbox.sh reset` las vacía y reinicia la secuencia. Su mapeo está en la sección `order_draft` de `mapping.saint.yaml`.
+
+### Tablas fiscales y garantía de cero riesgo contable (Fase 7)
+
+`SAFACT` (facturas), `SAITEMFAC` (sus renglones) y `SAACXC` (cuentas por cobrar) tienen 3 filas de ejemplo cada una (`init/03-fiscal.sql`). **El agente nunca debe escribir en ellas**: existen para poder demostrarlo. La garantía tiene tres capas independientes:
+
+| Capa | Dónde | Qué hace |
+|---|---|---|
+| 1. Lista blanca en el código | `internal/erp/saint/guard.go` | Toda sentencia de un pedido pasa por `checkStatement`: solo `SELECT` o `INSERT INTO [tabla]` con una de las dos tablas del borrador. `UPDATE`, `DELETE`, `MERGE`, `EXEC`, DDL, varias sentencias o comentarios se rechazan antes de enviarse. Además, el mapeo no puede apuntar el borrador a una tabla fiscal ni maestra. |
+| 2. Login SQL dedicado | `init/04-agent-login.sql` | El login `erp_agent` solo lee los datos maestros y hace `INSERT` en `SAPEDIDO`/`SAITEMPED`; tiene `DENY` explícito sobre lo fiscal y no puede editar ni borrar borradores. Al arrancar, el agente **comprueba contra SQL Server** (`HAS_PERMS_BY_NAME`, roles) que su login no puede escribir fuera de los borradores; con `sa` (u otro login privilegiado) **se niega a escribir pedidos** y lo informa al panel. |
+| 3. Pruebas automáticas | `internal/erp/saint/*_test.go` | Procesan pedidos y comprueban que la huella (filas + `CHECKSUM_AGG`) de las tablas fiscales y maestras no cambia; intentan 24 sentencias vedadas (escrituras, DDL y lecturas de lo fiscal) con el login del agente y exigen que SQL Server rechace todas; y una prueba de la prueba demuestra que la huella detecta una factura de contrabando. |
+
+El login `erp_agent` tiene contraseña de **desarrollo** (`Agent_Demo_2026!`), solo para este sandbox con datos ficticios. En un Saint real, el administrador crea su propio login con estos mismos permisos. DSN del agente: `sqlserver://erp_agent:Agent_Demo_2026%21@localhost:14330?database=SAINT_DEMO&encrypt=disable`.
+
 Invariante: `SAPROD.Existen` es la suma de `SAEXIS.Existen` de ese producto. `mutate` y el seed lo respetan.
 
 Algunos clientes quedan cerca o por encima de su límite de crédito, para probar la validación del carrito. Cerca del 5 % de los productos y algún cliente están inactivos.
