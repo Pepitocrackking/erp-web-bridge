@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, HttpCode, Post, UseGuards, UseInterceptors } from "@nestjs/common";
 import {
   customerSyncBatchSchema,
   productSyncBatchSchema,
@@ -9,9 +9,11 @@ import { Agent, ApiKeyGuard, type AgentContext } from "../auth/auth.guards";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { CustomersSyncService } from "./customers-sync.service";
 import { ProductsSyncService } from "./products-sync.service";
+import { SyncEntityName, SyncFailureLogInterceptor } from "./sync-failure-log.interceptor";
 
 @Controller("v1/sync")
 @UseGuards(ApiKeyGuard)
+@UseInterceptors(SyncFailureLogInterceptor)
 export class SyncController {
   constructor(
     private readonly products: ProductsSyncService,
@@ -20,6 +22,7 @@ export class SyncController {
 
   /** El agente empuja un lote de productos. La organización sale de la x-api-key, no del cuerpo. */
   @Post("products")
+  @SyncEntityName("products")
   @HttpCode(200)
   syncProducts(
     @Agent() agent: AgentContext,
@@ -30,6 +33,7 @@ export class SyncController {
 
   /** El agente empuja un lote de clientes con su límite de crédito y su deuda actual. */
   @Post("customers")
+  @SyncEntityName("customers")
   @HttpCode(200)
   syncCustomers(
     @Agent() agent: AgentContext,

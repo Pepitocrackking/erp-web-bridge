@@ -153,3 +153,20 @@ export const syncResultSchema = z.strictObject({
   deactivated: z.number().int().nonnegative().nullable(),
 });
 export type SyncResult = z.infer<typeof syncResultSchema>;
+
+/** Latido del agente (POST /v1/agent/heartbeat). */
+export const heartbeatSchema = z.strictObject({
+  agent_version: z.string().trim().min(1).max(64),
+  /** Lotes que el agente tiene en su cola local sin enviar (por red caida, p. ej.). */
+  queue_depth: z.number().int().nonnegative().optional(),
+  /** Ultimo error del agente, si lo hay: la API lo anota en sync_logs. */
+  last_error: z.string().trim().min(1).max(500).nullable().optional(),
+});
+export type Heartbeat = z.infer<typeof heartbeatSchema>;
+
+export const heartbeatResponseSchema = z.strictObject({
+  ok: z.literal(true),
+  /** Hora del servidor: el agente puede detectar un reloj desfasado. */
+  server_time: z.iso.datetime(),
+});
+export type HeartbeatResponse = z.infer<typeof heartbeatResponseSchema>;

@@ -1,5 +1,7 @@
 import {
   customerSchema,
+  heartbeatResponseSchema,
+  heartbeatSchema,
   orderSchema,
   productSchema,
   syncBatchSchema,
@@ -239,5 +241,36 @@ describe("syncResultSchema", () => {
   it("rechaza conteos negativos o campos de mas", () => {
     expect(syncResultSchema.safeParse({ ...result, inserted: -1 }).success).toBe(false);
     expect(syncResultSchema.safeParse({ ...result, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("heartbeatSchema", () => {
+  it("acepta el minimo y el completo", () => {
+    expect(heartbeatSchema.safeParse({ agent_version: "0.1.0" }).success).toBe(true);
+    expect(
+      heartbeatSchema.safeParse({ agent_version: "0.1.0", queue_depth: 3, last_error: "sin red" })
+        .success,
+    ).toBe(true);
+    expect(heartbeatSchema.safeParse({ agent_version: "0.1.0", last_error: null }).success).toBe(
+      true,
+    );
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["sin version", {}],
+    ["version vacia", { agent_version: "  " }],
+    ["version demasiado larga", { agent_version: "x".repeat(65) }],
+    ["cola negativa", { agent_version: "1", queue_depth: -1 }],
+    ["cola decimal", { agent_version: "1", queue_depth: 1.5 }],
+    ["error demasiado largo", { agent_version: "1", last_error: "x".repeat(501) }],
+    ["campo extra", { agent_version: "1", org_id: "x" }],
+  ])("rechaza %s", (_label, body) => {
+    expect(heartbeatSchema.safeParse(body).success).toBe(false);
+  });
+
+  it("la respuesta exige ok=true y una fecha", () => {
+    const now = new Date().toISOString();
+    expect(heartbeatResponseSchema.safeParse({ ok: true, server_time: now }).success).toBe(true);
+    expect(heartbeatResponseSchema.safeParse({ ok: false, server_time: now }).success).toBe(false);
   });
 });
