@@ -90,7 +90,7 @@ Rama: `phase-4/api`
 - [x] **4.3** `POST /v1/sync/customers`: clientes con límite de crédito y deuda.
 - [x] **4.4** `sync_logs` en cada sincronización y endpoint de `heartbeat` del agente.
 - [x] **4.5** Tasa de cambio manual: endpoints para fijarla y consultarla, con historial.
-- [ ] **4.6** Pedidos: creación con validación de límite de crédito, `GET /v1/orders/pending` para el agente y confirmación idempotente.
+- [x] **4.6** Pedidos: creación con validación de límite de crédito, `GET /v1/orders/pending` para el agente y confirmación idempotente.
 - [ ] **4.7** Rate limiting, validación estricta de entrada y documentación OpenAPI.
 
 ### Gate 4

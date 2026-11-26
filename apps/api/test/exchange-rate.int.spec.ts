@@ -45,7 +45,7 @@ describe("tasa de cambio manual (Postgres real)", () => {
     ownerA = await createStaffUser(pool, a.orgId, "owner");
     adminA = await createStaffUser(pool, a.orgId, "admin");
     staffA = await createStaffUser(pool, a.orgId, "staff");
-    customerA = await createCustomerUser(pool, a.orgId);
+    customerA = (await createCustomerUser(pool, a.orgId)).userId;
     adminB = await createStaffUser(pool, b.orgId, "admin");
     users.push(ownerA, adminA, staffA, customerA, adminB);
   });

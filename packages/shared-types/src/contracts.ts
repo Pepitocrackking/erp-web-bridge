@@ -214,3 +214,59 @@ export const exchangeRateHistorySchema = z.strictObject({
   offset: z.number().int().nonnegative(),
 });
 export type ExchangeRateHistory = z.infer<typeof exchangeRateHistorySchema>;
+
+/** Maximo de lineas de un pedido y de unidades por linea (protege a la API y al ERP). */
+export const ORDER_MAX_LINES = 200;
+export const ORDER_MAX_QUANTITY = 1_000_000;
+
+/**
+ * Cuerpo de POST /v1/orgs/:orgId/orders. Solo SKU y cantidad: precios, total, tasa, cliente y
+ * estado los fija el servidor, asi que el cliente no puede mandarlos.
+ */
+export const createOrderInputSchema = z.strictObject({
+  items: z
+    .array(
+      z.strictObject({
+        sku: nonEmpty,
+        quantity: z.number().int().positive().max(ORDER_MAX_QUANTITY),
+      }),
+    )
+    .min(1)
+    .max(ORDER_MAX_LINES),
+  notes: z.string().trim().min(1).max(500).optional(),
+});
+export type CreateOrderInput = z.infer<typeof createOrderInputSchema>;
+
+/** Pedido tal como lo devuelve la API: el contrato del agente mas su identidad. */
+export const webOrderSchema = orderSchema.extend({
+  id: z.uuid(),
+  notes: z.string().nullable(),
+  created_at: z.iso.datetime(),
+});
+export type WebOrder = z.infer<typeof webOrderSchema>;
+
+export const pendingOrdersQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+export type PendingOrdersQuery = z.infer<typeof pendingOrdersQuerySchema>;
+
+export const pendingOrdersSchema = z.strictObject({
+  orders: z.array(webOrderSchema),
+});
+export type PendingOrders = z.infer<typeof pendingOrdersSchema>;
+
+/** Cuerpo de POST /v1/orders/:orderId/confirm: el agente informa la referencia del borrador en el ERP. */
+export const confirmOrderInputSchema = z.strictObject({
+  erp_order_reference: z.string().trim().min(1).max(64),
+});
+export type ConfirmOrderInput = z.infer<typeof confirmOrderInputSchema>;
+
+/** duplicate=true: el pedido ya estaba confirmado con esa misma referencia; no se cambio nada. */
+export const confirmOrderResultSchema = z.strictObject({
+  id: z.uuid(),
+  status: orderStatusSchema,
+  erp_order_reference: z.string(),
+  synced_at: z.iso.datetime(),
+  duplicate: z.boolean(),
+});
+export type ConfirmOrderResult = z.infer<typeof confirmOrderResultSchema>;

@@ -1,6 +1,11 @@
 import {
+  confirmOrderInputSchema,
+  createOrderInputSchema,
   customerSchema,
   EXCHANGE_RATE_MAX,
+  ORDER_MAX_LINES,
+  ORDER_MAX_QUANTITY,
+  pendingOrdersQuerySchema,
   exchangeRateHistoryQuerySchema,
   exchangeRateInputSchema,
   heartbeatResponseSchema,
@@ -314,6 +319,79 @@ describe("tasa de cambio", () => {
       { otro: "1" },
     ]) {
       expect(exchangeRateHistoryQuerySchema.safeParse(bad).success).toBe(false);
+    }
+  });
+});
+
+describe("createOrderInputSchema", () => {
+  const ok = { items: [{ sku: "P1", quantity: 2 }], notes: "Entregar en la tarde" };
+
+  it("acepta un pedido con y sin notas", () => {
+    expect(createOrderInputSchema.safeParse(ok).success).toBe(true);
+    expect(createOrderInputSchema.safeParse({ items: ok.items }).success).toBe(true);
+  });
+
+  it("acepta el maximo de lineas y de unidades", () => {
+    const lines = Array.from({ length: ORDER_MAX_LINES }, (_, i) => ({
+      sku: `P${i}`,
+      quantity: ORDER_MAX_QUANTITY,
+    }));
+    expect(createOrderInputSchema.safeParse({ items: lines }).success).toBe(true);
+  });
+
+  it.each<[string, unknown]>([
+    ["sin items", {}],
+    ["items vacio", { items: [] }],
+    [
+      "mas lineas que el maximo",
+      {
+        items: Array.from({ length: ORDER_MAX_LINES + 1 }, (_, i) => ({
+          sku: `P${i}`,
+          quantity: 1,
+        })),
+      },
+    ],
+    ["cantidad cero", { items: [{ sku: "P1", quantity: 0 }] }],
+    ["cantidad negativa", { items: [{ sku: "P1", quantity: -1 }] }],
+    ["cantidad decimal", { items: [{ sku: "P1", quantity: 1.5 }] }],
+    ["cantidad como texto", { items: [{ sku: "P1", quantity: "2" }] }],
+    ["cantidad sobre el maximo", { items: [{ sku: "P1", quantity: ORDER_MAX_QUANTITY + 1 }] }],
+    ["sku vacio", { items: [{ sku: " ", quantity: 1 }] }],
+    [
+      "precio enviado por el cliente",
+      { items: [{ sku: "P1", quantity: 1, unit_price_usd: 0.01 }] },
+    ],
+    ["total enviado por el cliente", { items: ok.items, total_usd: 1 }],
+    ["cliente enviado por el cliente", { items: ok.items, customer_id: "x" }],
+    ["estado enviado por el cliente", { items: ok.items, status: "approved" }],
+    ["notas vacias", { items: ok.items, notes: " " }],
+    ["notas demasiado largas", { items: ok.items, notes: "x".repeat(501) }],
+  ])("rechaza %s", (_label, body) => {
+    expect(createOrderInputSchema.safeParse(body).success).toBe(false);
+  });
+});
+
+describe("confirmacion de pedidos y consulta de pendientes", () => {
+  it("la confirmacion exige solo una referencia no vacia de hasta 64 caracteres", () => {
+    expect(confirmOrderInputSchema.safeParse({ erp_order_reference: "PED-000123" }).success).toBe(
+      true,
+    );
+    for (const bad of [
+      {},
+      { erp_order_reference: " " },
+      { erp_order_reference: "x".repeat(65) },
+      { erp_order_reference: "A", status: "approved" },
+      { erp_order_reference: 5 },
+    ]) {
+      expect(confirmOrderInputSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("limit de pendientes: 100 por defecto, entre 1 y 500", () => {
+    expect(pendingOrdersQuerySchema.parse({})).toEqual({ limit: 100 });
+    expect(pendingOrdersQuerySchema.parse({ limit: "500" })).toEqual({ limit: 500 });
+    for (const bad of [{ limit: "0" }, { limit: "501" }, { limit: "x" }, { otro: "1" }]) {
+      expect(pendingOrdersQuerySchema.safeParse(bad).success).toBe(false);
     }
   });
 });

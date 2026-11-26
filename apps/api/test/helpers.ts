@@ -59,13 +59,42 @@ export async function createStaffUser(
   return userId;
 }
 
-/** Crea un cliente B2B y un usuario con rol customer atado a él (comprador del catalogo). */
-export async function createCustomerUser(pool: Pool, orgId: string): Promise<string> {
+/** Un comprador del catálogo: usuario con rol customer atado a su cliente B2B. */
+export interface TestCustomer {
+  userId: string;
+  customerId: string;
+  customerCode: string;
+}
+
+/** Crea un cliente B2B (con límite, deuda y lista de precios) y un usuario con rol customer. */
+export async function createCustomerUser(
+  pool: Pool,
+  orgId: string,
+  opts: {
+    creditLimit?: number;
+    debt?: number;
+    priceListId?: string | null;
+    isActive?: boolean;
+  } = {},
+): Promise<TestCustomer> {
   const customerId = randomUUID();
+  const customerCode = `C-${customerId.slice(0, 8)}`;
   await pool.query(
-    `INSERT INTO public.b2b_customers (id, org_id, erp_customer_code, tax_id, business_name)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [customerId, orgId, `C-${customerId.slice(0, 8)}`, "J-1", "Cliente de prueba"],
+    `INSERT INTO public.b2b_customers
+       (id, org_id, erp_customer_code, tax_id, business_name, credit_limit_usd, current_debt_usd,
+        price_list_id, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      customerId,
+      orgId,
+      customerCode,
+      "J-1",
+      "Cliente de prueba",
+      opts.creditLimit ?? 0,
+      opts.debt ?? 0,
+      opts.priceListId ?? null,
+      opts.isActive ?? true,
+    ],
   );
   const userId = randomUUID();
   await pool.query(
@@ -76,7 +105,7 @@ export async function createCustomerUser(pool: Pool, orgId: string): Promise<str
     `INSERT INTO public.org_members (org_id, user_id, role, customer_id) VALUES ($1, $2, 'customer', $3)`,
     [orgId, userId, customerId],
   );
-  return userId;
+  return { userId, customerId, customerCode };
 }
 
 /** Borra los tenants de prueba (las FK en cascada limpian el resto) y sus usuarios. */
