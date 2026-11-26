@@ -7,14 +7,19 @@
     "build": "next build",
     "start": "next start",
     "test": "jest",
-    "lint": "tsc -p tsconfig.json --noEmit && eslint ."
+    "lint": "tsc -p tsconfig.json --noEmit && eslint .",
+    "e2e": "playwright test"
   },
   "dependencies": {
+    "@erp-web-bridge/shared-types": "workspace:*",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.119.2",
     "next": "^16.4.6",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.3.5",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

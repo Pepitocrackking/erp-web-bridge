@@ -13,6 +13,13 @@ export interface AppConfig {
   databaseUrl: string;
   /** Secreto HS256 con el que Supabase Auth firma los JWT (SUPABASE_JWT_SECRET). */
   jwtSecret: string;
+  /**
+   * JWKS de Supabase Auth (SUPABASE_JWKS_URL): claves públicas con las que se verifican los JWT ES256,
+   * que es como firma el CLI reciente y los proyectos nuevos.
+   */
+  jwksUrl: string;
+  /** Emisor exigido en el claim `iss` (SUPABASE_JWT_ISSUER). Vacío = no se comprueba. */
+  jwtIssuer: string | null;
   rateLimit: RateLimitConfig;
   /**
    * Cuántos proxies de confianza hay delante de la API (TRUST_PROXY). Apagado por defecto: así
@@ -43,6 +50,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     databaseUrl: env.DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
     jwtSecret: env.SUPABASE_JWT_SECRET ?? "super-secret-jwt-token-with-at-least-32-characters-long",
+    jwksUrl: env.SUPABASE_JWKS_URL ?? "http://127.0.0.1:54321/auth/v1/.well-known/jwks.json",
+    jwtIssuer: env.SUPABASE_JWT_ISSUER?.trim() || null,
     rateLimit: {
       windowSeconds: positiveInt(env.RATE_LIMIT_WINDOW_SECONDS, 60),
       default: positiveInt(env.RATE_LIMIT_DEFAULT, 120),
