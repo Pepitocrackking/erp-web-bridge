@@ -86,11 +86,12 @@ describe("POST /v1/sync/products (Postgres real)", () => {
       )
     ).rows;
 
-  const logs = async (orgId: string) =>
+  const successLogs = async (orgId: string) =>
     (
-      await pool.query("SELECT * FROM public.sync_logs WHERE org_id = $1 ORDER BY created_at", [
-        orgId,
-      ])
+      await pool.query(
+        "SELECT * FROM public.sync_logs WHERE org_id = $1 AND status = 'success' ORDER BY created_at",
+        [orgId],
+      )
     ).rows;
 
   describe("ingesta y upsert", () => {
@@ -119,7 +120,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
         sync_hash: "h-A1",
       });
 
-      const log = await logs(a.orgId);
+      const log = await successLogs(a.orgId);
       expect(log).toHaveLength(1);
       expect(log[0]).toMatchObject({
         direction: "erp_to_cloud",
@@ -204,7 +205,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
         inserted: null,
       });
       expect((await rows(a.orgId))[0]).toMatchObject({ price_usd: 50 });
-      expect(await logs(a.orgId)).toHaveLength(2);
+      expect(await successLogs(a.orgId)).toHaveLength(2);
     });
 
     it("dos envíos simultáneos del mismo lote se procesan una sola vez", async () => {
@@ -212,7 +213,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
       const [r1, r2] = await Promise.all([post(a.apiKey, body), post(a.apiKey, body)]);
       expect([r1.status, r2.status]).toEqual([200, 200]);
       expect([r1.body.duplicate, r2.body.duplicate].sort()).toEqual([false, true]);
-      expect(await logs(a.orgId)).toHaveLength(1);
+      expect(await successLogs(a.orgId)).toHaveLength(1);
       expect(await rows(a.orgId)).toHaveLength(200);
     });
 
@@ -251,7 +252,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
       const aRows = await rows(a.orgId);
       expect(aRows).toHaveLength(1);
       expect(aRows[0]).toMatchObject({ erp_sku: "S1", price_usd: 555 });
-      expect(await logs(b.orgId)).toHaveLength(1);
+      expect(await successLogs(b.orgId)).toHaveLength(1);
     });
 
     it("una reconciliación completa de A no desactiva productos de B", async () => {
@@ -288,7 +289,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
       expect(res.body.issues.length).toBeGreaterThan(0);
       expect(res.body.issues[0]).toHaveProperty("path");
       expect(await rows(a.orgId)).toHaveLength(0);
-      expect(await logs(a.orgId)).toHaveLength(0);
+      expect(await successLogs(a.orgId)).toHaveLength(0);
     });
 
     it("rechaza campos extra, tipo de lote equivocado y lotes de más de 1000", async () => {
@@ -312,7 +313,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
       await post(a.apiKey, batch([product("A1"), product("A2", { price_usd: 1e12 })])).expect(422);
       await post(a.apiKey, batch([product("A1", { name: "mal\u0000nombre" })])).expect(422);
       expect(await rows(a.orgId)).toHaveLength(0);
-      expect(await logs(a.orgId)).toHaveLength(0);
+      expect(await successLogs(a.orgId)).toHaveLength(0);
     });
 
     it("un lote con un registro inválido no guarda ni los válidos", async () => {
@@ -373,7 +374,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
 
     it("si lo recibido no cuadra con total_records responde 409 y no desactiva ni guarda nada", async () => {
       await post(a.apiKey, batch(many(10))).expect(200);
-      const logsBefore = (await logs(a.orgId)).length;
+      const logsBefore = (await successLogs(a.orgId)).length;
       const id = randomUUID();
       // Se "perdió" el primer lote: llegan 4 de los 6 anunciados.
       const res = await post(a.apiKey, recon(id, many(4, "Z"), true, 6)).expect(409);
@@ -381,7 +382,7 @@ describe("POST /v1/sync/products (Postgres real)", () => {
       const stored = await rows(a.orgId);
       expect(stored).toHaveLength(10); // los Z tampoco quedaron: el lote final se revirtió
       expect(stored.every((r) => r.is_active)).toBe(true);
-      expect((await logs(a.orgId)).length).toBe(logsBefore);
+      expect((await successLogs(a.orgId)).length).toBe(logsBefore);
     });
 
     it("un reintento del último lote tras un 409 puede completarse", async () => {

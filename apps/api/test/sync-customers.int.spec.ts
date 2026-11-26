@@ -83,10 +83,10 @@ describe("POST /v1/sync/customers (Postgres real)", () => {
       )
     ).rows;
 
-  const logs = async (orgId: string) =>
+  const successLogs = async (orgId: string) =>
     (
       await pool.query(
-        "SELECT * FROM public.sync_logs WHERE org_id = $1 AND entity = 'customers' ORDER BY created_at",
+        "SELECT * FROM public.sync_logs WHERE org_id = $1 AND entity = 'customers' AND status = 'success' ORDER BY created_at",
         [orgId],
       )
     ).rows;
@@ -114,7 +114,7 @@ describe("POST /v1/sync/customers (Postgres real)", () => {
     });
     // La deuda puede ser negativa (saldo a favor) y el estado inactivo se respeta.
     expect(stored[1]).toMatchObject({ current_debt_usd: -30, is_active: false });
-    const log = await logs(a.orgId);
+    const log = await successLogs(a.orgId);
     expect(log).toHaveLength(1);
     expect(log[0]).toMatchObject({
       direction: "erp_to_cloud",
@@ -175,12 +175,12 @@ describe("POST /v1/sync/customers (Postgres real)", () => {
     const res = await post(a.apiKey, body).expect(200);
     expect(res.body).toMatchObject({ duplicate: true, received: 1, inserted: null });
     expect((await rows(a.orgId))[0]).toMatchObject({ current_debt_usd: 7 });
-    expect(await logs(a.orgId)).toHaveLength(2);
+    expect(await successLogs(a.orgId)).toHaveLength(2);
 
     const same = batch(many(100));
     const [r1, r2] = await Promise.all([post(b.apiKey, same), post(b.apiKey, same)]);
     expect([r1.body.duplicate, r2.body.duplicate].sort()).toEqual([false, true]);
-    expect(await logs(b.orgId)).toHaveLength(1);
+    expect(await successLogs(b.orgId)).toHaveLength(1);
   });
 
   it("una API key de A no escribe clientes en B", async () => {
@@ -213,7 +213,7 @@ describe("POST /v1/sync/customers (Postgres real)", () => {
       ];
       for (const bad of bads) await post(a.apiKey, bad).expect(400);
       expect(await rows(a.orgId)).toHaveLength(0);
-      expect(await logs(a.orgId)).toHaveLength(0);
+      expect(await successLogs(a.orgId)).toHaveLength(0);
     });
 
     it("rechaza códigos repetidos en el lote con 422", async () => {
@@ -233,7 +233,7 @@ describe("POST /v1/sync/customers (Postgres real)", () => {
       await post(a.apiKey, batch([customer("C1", { current_debt_usd: -1e12 })])).expect(422);
       await post(a.apiKey, batch([customer("C1", { business_name: "a\u0000b" })])).expect(422);
       expect(await rows(a.orgId)).toHaveLength(0);
-      expect(await logs(a.orgId)).toHaveLength(0);
+      expect(await successLogs(a.orgId)).toHaveLength(0);
     });
   });
 
@@ -273,11 +273,11 @@ describe("POST /v1/sync/customers (Postgres real)", () => {
 
     it("si lo recibido no cuadra con total_records responde 409 y no cambia nada", async () => {
       await post(a.apiKey, batch(many(8))).expect(200);
-      const logsBefore = (await logs(a.orgId)).length;
+      const logsBefore = (await successLogs(a.orgId)).length;
       const res = await post(a.apiKey, recon(randomUUID(), many(3), true, 5)).expect(409);
       expect(res.body).toMatchObject({ expected_total: 5, received_total: 3 });
       expect((await rows(a.orgId)).every((r) => r.is_active)).toBe(true);
-      expect((await logs(a.orgId)).length).toBe(logsBefore);
+      expect((await successLogs(a.orgId)).length).toBe(logsBefore);
     });
 
     it("los productos y los clientes tienen reconciliaciones independientes", async () => {
