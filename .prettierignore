@@ -1,0 +1,15 @@
+node_modules
+dist
+.next
+.turbo
+coverage
+pnpm-lock.yaml
+next-env.d.ts
+*.tsbuildinfo
+*.md
+docs
+infra
+scripts
+.claude
+packages/erp-agent
+docker-compose.yml
