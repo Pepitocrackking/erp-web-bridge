@@ -37,7 +37,7 @@ Nada sale de la rama sin pasar esta compuerta. La regla de hierro:
 1. `git checkout main && git pull`, y comprueba con `git log` que el merge está.
 2. Crea la rama de la siguiente fase (`phase-N+1/<slug>`).
 3. **Escribe el relevo en `docs/STATE.md`** para la fase siguiente: la tarea `N+1.1` con archivos, comandos y detalles técnicos que vayas a necesitar, más el hilo de contexto. Comitea en la rama nueva (sin push).
-4. Entrega al usuario **un resumen corto de la fase** (qué se hizo, evidencia clave, enlace al PR) y dile que ya puede escribir `/clear` y luego `/resume`. Ese es el único momento en que se le pide algo.
+4. Entrega al usuario **un resumen corto de la fase** (qué se hizo, evidencia clave, enlace al PR) y dile que ya puede escribir `/clear` y luego `/retomar`. Ese es el único momento en que se le pide algo.
 
 ## Señales de alarma: si piensas esto, detente
 

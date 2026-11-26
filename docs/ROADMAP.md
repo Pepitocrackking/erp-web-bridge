@@ -19,14 +19,14 @@ Rama: `phase-0/bootstrap`
 - [x] **0.2** Manual del proyecto copiado a `docs/manual-proyecto-1.md`.
 - [x] **0.3** `CLAUDE.md` con decisiones, flujo de trabajo e importación de `docs/STATE.md`.
 - [x] **0.4** `docs/ROADMAP.md` y `docs/STATE.md`.
-- [x] **0.5** Skills `next-task`, `phase-gate`, `checkpoint` y `resume` en `.claude/skills/`.
+- [x] **0.5** Skills `next-task`, `phase-gate`, `guardar-estado` y `retomar` en `.claude/skills/`.
 - [x] **0.6** Plantilla de PR y script `scripts/validate-workflow.sh` que valida skills, ROADMAP y STATE.
 
 ### Gate 0
 - [x] `bash scripts/validate-workflow.sh` termina con código 0.
 - [x] Las 4 skills tienen frontmatter válido (`name` igual al nombre de su carpeta y `description` no vacía).
 - [x] PR de `phase-0/bootstrap` abierto contra `main` con la evidencia en el cuerpo (PR #1).
-- [ ] Tras el merge, en una sesión nueva `/resume` aparece como skill disponible (lo confirma el usuario).
+- [ ] Tras el merge, en una sesión nueva `/retomar` aparece como skill disponible (lo confirma el usuario).
 
 ---
 

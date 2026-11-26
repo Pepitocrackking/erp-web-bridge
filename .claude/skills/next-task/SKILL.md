@@ -27,4 +27,4 @@ Ejecuta **una** tarea del ROADMAP, la verifica y la marca. El checklist del repo
 - Si una tarea te bloquea, no la saltes en silencio: anótalo en "Bloqueos" de `docs/STATE.md`, avisa al usuario y propón opciones.
 - Si descubres que una tarea del ROADMAP está mal planteada, propón el cambio al usuario. No lo cambies por tu cuenta.
 - Nunca marques `[x]` por "debería funcionar", por un test anterior o por una verificación parcial.
-- Si el contexto de la conversación ya es largo, sugiere ejecutar `checkpoint` y que el usuario haga `/clear`.
+- Si el contexto de la conversación ya es largo, sugiere ejecutar `guardar-estado` y que el usuario haga `/clear`.

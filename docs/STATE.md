@@ -1,6 +1,6 @@
 # STATE
 
-Memoria del proyecto entre sesiones. Lo actualiza la skill `checkpoint` y lo lee `resume`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
+Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo lee `retomar`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
 
 ## Posición
 - **Fase actual:** 1, Sandbox de Saint en Docker
@@ -10,7 +10,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `checkpoint` y lo lee
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
-  - Pendiente menor: el usuario confirma que `/resume` aparece como skill en una sesión nueva (último criterio del Gate 0).
+  - Pendiente menor: el usuario confirma que `/retomar` aparece como skill en una sesión nueva (último criterio del Gate 0).
 
 ## Siguiente acción
 Ejecutar la tarea **1.1**: `docker-compose.yml` en la raíz del repo con SQL Server 2022 y un `.env.example`.
@@ -36,13 +36,13 @@ Notas de diseño del esquema (tarea 1.2), de mejor esfuerzo según el conocimien
 - **Quién:** Orlando Guerra, ingeniero de sistemas full stack. Usa este proyecto como pieza central del portafolio de una agencia de software, y quiere que pueda escalar y venderse.
 - **Qué se construye:** un agente local en Go que lee el ERP del comercio (Saint primero) y empuja los cambios por HTTPS a una API NestJS con Supabase, más un catálogo B2B con precios en USD y Bs y pedidos que vuelven al ERP como borradores.
 - **Por qué Saint y no Odoo primero:** Saint es el ERP que domina el mercado objetivo (Venezuela). Como no hay un Saint real a mano, se prueba con un sandbox SQL Server en Docker. Odoo queda en el backlog v1.
-- **Cómo se trabaja:** ciclo `next-task` por tarea, `phase-gate` al cerrar la fase, `checkpoint` antes de `/clear`, `resume` después. La memoria vive en este archivo y en `docs/ROADMAP.md`, no en la conversación.
+- **Cómo se trabaja:** ciclo `next-task` por tarea, `phase-gate` al cerrar la fase, `guardar-estado` antes de `/clear`, `retomar` después. La memoria vive en este archivo y en `docs/ROADMAP.md`, no en la conversación.
 
 ## Acuerdos con el usuario
 - Comunicación en español. Solo quiere ver un resumen al terminar cada fase; entre fases no hay que consultarle lo que ya está decidido.
 - Dio permiso total para trabajar y **delegó el merge de los PR en `phase-gate`**. El merge solo ocurre si el Gate pasó entero.
 - Una rama y un PR por fase. Nada de push directo a `main`.
-- Hace `/clear` cuando se lo digo, y arranca la fase siguiente con `/resume`.
+- Hace `/clear` cuando se lo digo, y arranca la fase siguiente con `/retomar`.
 - Cuenta de GitHub: **Pepitocrackking** (la activa en `gh`; también está autenticada THO-Orlando, sin uso).
 - Los commits van con el correo `noreply` de GitHub (`361565448+Pepitocrackking@users.noreply.github.com`), pasado con `git -c user.name="Orlando Guerra" -c user.email=...`. No se modifica la configuración global de git, porque el repo es público y el correo global es personal.
 - Cada commit termina con la línea `Co-Authored-By` que indique el entorno; cada PR, con la línea de atribución de Claude Code.
@@ -52,6 +52,8 @@ Notas de diseño del esquema (tarea 1.2), de mejor esfuerzo según el conocimien
 - Odoo, el scraper BCV y los precios escalonados están en el backlog v1. En el MVP: carrito estándar con validación de límite de crédito y tasa de cambio manual.
 - Los pedidos web llegan al ERP solo como borradores, nunca en tablas fiscales.
 - El nombre exacto de las columnas de Saint es de mejor esfuerzo; vive en `infra/saint-sandbox/mapping.saint.yaml` y debe validarse contra una base real.
+
+- Las skills se llaman `guardar-estado` y `retomar` (no `checkpoint` ni `resume`) porque `/resume` y `/checkpoint` son comandos integrados de Claude Code y tienen prioridad sobre las skills del proyecto. Evitar nombres de comandos integrados al crear skills nuevas.
 
 ## Bloqueos y preguntas abiertas
 - Ninguno.
