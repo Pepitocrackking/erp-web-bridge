@@ -104,19 +104,19 @@ Rama: `phase-4/api`
 ## Fase 5: Agente Go
 Rama: `phase-5/agent`
 
-- [ ] **5.1** Interfaz `ERPAdapter` y modelo canónico.
-- [ ] **5.2** `MockAdapter` con datos y mutaciones deterministas.
-- [ ] **5.3** `SaintAdapter` contra el sandbox, usando el mapeo configurable.
-- [ ] **5.4** Almacén SQLite de hashes y delta sync SHA256 de `sku + precio + stock + nombre`.
-- [ ] **5.5** Reconciliación completa periódica para detectar productos eliminados o desactivados.
-- [ ] **5.6** Cliente HTTPS con reintentos con backoff, cola local y tolerancia a la caída de red o de luz.
-- [ ] **5.7** Configuración por archivo, logs estructurados y `heartbeat`.
+- [x] **5.1** Interfaz `ERPAdapter` y modelo canónico.
+- [x] **5.2** `MockAdapter` con datos y mutaciones deterministas.
+- [x] **5.3** `SaintAdapter` contra el sandbox, usando el mapeo configurable.
+- [x] **5.4** Almacén SQLite de hashes y delta sync SHA256 de `sku + precio + stock + nombre`.
+- [x] **5.5** Reconciliación completa periódica para detectar productos eliminados o desactivados.
+- [x] **5.6** Cliente HTTPS con reintentos con backoff, cola local y tolerancia a la caída de red o de luz.
+- [x] **5.7** Configuración por archivo, logs estructurados y `heartbeat`.
 
 ### Gate 5
-- [ ] E2E real: sandbox, agente, API, base de datos con 300 o más productos sincronizados y conteos iguales.
-- [ ] Se muta 1 producto: el agente envía exactamente 1 registro (se comprueba en `sync_logs`).
-- [ ] Se corta la red con el agente corriendo: no pierde datos y se pone al día al volver.
-- [ ] Pruebas unitarias del hash y del diff en verde.
+- [x] E2E real: sandbox, agente, API, base de datos con 300 o más productos sincronizados y conteos iguales.
+- [x] Se muta 1 producto: el agente envía exactamente 1 registro (se comprueba en `sync_logs`).
+- [x] Se corta la red con el agente corriendo: no pierde datos y se pone al día al volver.
+- [x] Pruebas unitarias del hash y del diff en verde.
 
 ---
 
