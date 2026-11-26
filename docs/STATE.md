@@ -47,6 +47,12 @@ Notas de diseño del esquema (tarea 1.2), de mejor esfuerzo según el conocimien
 - Los commits van con el correo `noreply` de GitHub (`361565448+Pepitocrackking@users.noreply.github.com`), pasado con `git -c user.name="Orlando Guerra" -c user.email=...`. No se modifica la configuración global de git, porque el repo es público y el correo global es personal.
 - Cada commit termina con la línea `Co-Authored-By` que indique el entorno; cada PR, con la línea de atribución de Claude Code.
 
+## Decisiones vigentes
+- Agente en Go. Saint es el ERP principal, probado con un sandbox SQL Server 2022 en Docker.
+- Odoo, el scraper BCV y los precios escalonados están en el backlog v1. En el MVP: carrito estándar con validación de límite de crédito y tasa de cambio manual.
+- Los pedidos web llegan al ERP solo como borradores, nunca en tablas fiscales.
+- El nombre exacto de las columnas de Saint es de mejor esfuerzo; vive en `infra/saint-sandbox/mapping.saint.yaml` y debe validarse contra una base real.
+
 ## Bloqueos y preguntas abiertas
 - Ninguno.
 
