@@ -37,12 +37,17 @@ Los logs salen por stderr, en JSON por defecto (`log.format: text` para leerlos 
 go build ./... && go test ./... && go vet ./... && gofmt -l .
 ```
 
-Prueba contra el sandbox real de Saint (se omite si no hay variable):
+Prueba contra el sandbox real de Saint (se omiten si no hay variables). `SAINT_TEST_DSN` es el administrador, que solo usan las pruebas para preparar datos y tomar huellas; `SAINT_AGENT_TEST_DSN` es el login restringido del agente (`erp_agent`) y activa las pruebas de la garantía de cero riesgo contable:
 
 ```
 SAINT_TEST_DSN='sqlserver://sa:<MSSQL_SA_PASSWORD codificada>@localhost:14330?database=SAINT_DEMO&encrypt=disable' \
+SAINT_AGENT_TEST_DSN='sqlserver://erp_agent:Agent_Demo_2026%21@localhost:14330?database=SAINT_DEMO&encrypt=disable' \
   go test -count=1 -v ./internal/erp/saint/
 ```
+
+## Seguridad contable de los pedidos
+
+El agente **solo escribe borradores** y lo garantiza en tres capas (detalle en `docs/saint-sandbox.md`): una lista blanca en el código (solo `SELECT` e `INSERT` en las dos tablas del borrador), un login SQL dedicado sin permisos sobre lo fiscal y pruebas automáticas que comparan la huella de las tablas fiscales. **Conecta siempre con un login restringido, nunca con `sa`:** al arrancar el agente le pregunta a SQL Server qué puede escribir su login y, si puede escribir fuera de los borradores, se niega a procesar pedidos (el motivo llega al heartbeat y al panel) hasta que se corrija. La sincronización de productos y clientes sigue funcionando.
 
 ## Estructura
 

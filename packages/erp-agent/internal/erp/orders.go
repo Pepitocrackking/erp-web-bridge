@@ -3,6 +3,7 @@ package erp
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 // OrderLine es un renglón de un pedido web, con el precio unitario (USD) fijado por la API.
@@ -50,4 +51,31 @@ func (e *RejectedError) Error() string { return "pedido rechazado por el ERP: " 
 func IsRejected(err error) bool {
 	var r *RejectedError
 	return errors.As(err, &r)
+}
+
+// WriteIsolationChecker lo implementan los adaptadores que pueden comprobar, contra el propio ERP,
+// que su conexión no tiene permiso de escritura fuera de los borradores.
+type WriteIsolationChecker interface {
+	// VerifyWriteIsolation devuelve *UnsafeLoginError si la conexión puede escribir donde no debe.
+	// Cualquier otro error (ERP caído...) es transitorio.
+	VerifyWriteIsolation(ctx context.Context) error
+}
+
+// UnsafeLoginError dice que el login del agente puede escribir en tablas fiscales o de datos
+// maestros (o tiene un rol de escritura global). Reintentar no lo arregla: hay que usar un login
+// restringido (en el sandbox, erp_agent: infra/saint-sandbox/init/04-agent-login.sql).
+type UnsafeLoginError struct {
+	Login    string
+	Problems []string
+}
+
+func (e *UnsafeLoginError) Error() string {
+	return "el login del ERP (" + e.Login + ") puede escribir fuera de los borradores: " + strings.Join(e.Problems, "; ") +
+		". Por seguridad contable el agente no escribirá pedidos con él: usa un login restringido (solo lectura de datos maestros e INSERT en los borradores) o desactiva orders.enabled"
+}
+
+// IsUnsafeLogin informa si err (o algo que envuelve) es un *UnsafeLoginError.
+func IsUnsafeLogin(err error) bool {
+	var u *UnsafeLoginError
+	return errors.As(err, &u)
 }

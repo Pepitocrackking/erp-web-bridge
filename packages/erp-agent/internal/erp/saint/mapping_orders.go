@@ -10,6 +10,54 @@ import (
 type OrderDraft struct {
 	Header OrderHeader `yaml:"header"`
 	Items  OrderItems  `yaml:"items"`
+	// ProtectedTables son tablas fiscales (facturas, cuentas por cobrar...) que el agente nunca
+	// debe poder escribir, además de las que ya conoce el código (ver builtinProtected). Sirven
+	// para dos cosas: el mapeo no puede apuntar el borrador a ellas, y al arrancar se comprueba
+	// que el login del agente no tenga permiso de escritura sobre ninguna.
+	ProtectedTables []string `yaml:"protected_tables"`
+}
+
+// builtinProtected son tablas fiscales de Saint que ningún mapeo puede usar como destino del
+// borrador, aunque el YAML se equivoque o se manipule. Los nombres son de mejor esfuerzo.
+var builtinProtected = []string{"SAFACT", "SAITEMFAC", "SAACXC", "SAPAGCXC", "SAACXP", "SACOMP", "SAITEMCOM"}
+
+// ProtectedSet devuelve, en mayúsculas, todo lo que el agente no debe escribir: las tablas fiscales
+// (las del código y las del mapeo) y los datos maestros que solo lee (productos, existencias,
+// categorías, clientes). Las tablas del borrador quedan fuera por definición.
+func (m *Mapping) ProtectedSet() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(t string) {
+		t = strings.ToUpper(strings.TrimSpace(t))
+		if t != "" && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	for _, t := range builtinProtected {
+		add(t)
+	}
+	if m.OrderDraft != nil {
+		for _, t := range m.OrderDraft.ProtectedTables {
+			add(t)
+		}
+	}
+	add(m.Product.Table)
+	add(m.Customer.Table)
+	for _, f := range m.Product.Fields {
+		if f.Lookup != nil {
+			add(f.Lookup.Table)
+		}
+	}
+	if sd := m.StockByDepot; sd != nil {
+		add(sd.Table)
+		for _, f := range sd.Fields {
+			if f.Lookup != nil {
+				add(f.Lookup.Table)
+			}
+		}
+	}
+	return out
 }
 
 // Sequence genera el correlativo del borrador: Prefix + el número con ceros a la izquierda.
@@ -42,8 +90,13 @@ func (d *OrderDraft) WriteTables() []string {
 	return []string{d.Header.Table, d.Items.Table}
 }
 
-func (d *OrderDraft) validate() error {
+func (d *OrderDraft) validate(m *Mapping) error {
 	h, it := d.Header, d.Items
+	for _, t := range d.ProtectedTables {
+		if !identRe.MatchString(t) {
+			return fmt.Errorf("saint: order_draft.protected_tables tiene un nombre inválido: %q", t)
+		}
+	}
 	if !identRe.MatchString(h.Table) {
 		return fmt.Errorf("saint: order_draft.header.table inválida: %q", h.Table)
 	}
@@ -52,6 +105,14 @@ func (d *OrderDraft) validate() error {
 	}
 	if strings.EqualFold(h.Table, it.Table) {
 		return fmt.Errorf("saint: order_draft.header y order_draft.items no pueden ser la misma tabla (%q)", h.Table)
+	}
+	// El destino del borrador no puede ser contabilidad ni datos maestros: sería escribir donde no se debe.
+	for _, t := range d.WriteTables() {
+		for _, p := range m.ProtectedSet() {
+			if strings.EqualFold(t, p) {
+				return fmt.Errorf("saint: order_draft no puede escribir en %q: es una tabla fiscal o de datos maestros que el agente solo lee", t)
+			}
+		}
 	}
 	s := h.NumberSequence
 	if !identRe.MatchString(s.Name) {

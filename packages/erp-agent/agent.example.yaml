@@ -13,9 +13,12 @@ api:
 erp:
   type: saint # saint | mock
   saint:
-    # SQL Server de Saint. Sandbox local: puerto 14330, base SAINT_DEMO, usuario sa.
+    # SQL Server de Saint. Sandbox local: puerto 14330, base SAINT_DEMO, login erp_agent.
+    # USA UN LOGIN RESTRINGIDO, NUNCA sa: solo lectura de los datos maestros e INSERT en las tablas
+    # de borrador de pedidos, sin permisos sobre tablas fiscales (ver infra/saint-sandbox/init/04-agent-login.sql).
+    # Con un login que pueda escribir fuera de los borradores, el agente se niega a procesar pedidos.
     # Si la contraseña tiene caracteres especiales, codifícalos (p. ej. ! = %21).
-    dsn: "sqlserver://sa:CONTRASENA@localhost:14330?database=SAINT_DEMO&encrypt=disable"
+    dsn: "sqlserver://erp_agent:CONTRASENA@localhost:14330?database=SAINT_DEMO&encrypt=disable"
     # Mapeo de tablas/columnas de Saint -> campos canónicos. Si tu versión de Saint
     # nombra algo distinto, se cambia en ese archivo, nunca en el agente.
     mapping_file: ../../infra/saint-sandbox/mapping.saint.yaml

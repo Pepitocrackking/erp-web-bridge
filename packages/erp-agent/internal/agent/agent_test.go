@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -271,5 +272,78 @@ func TestPedidosDesactivadosNoConsultanLaNube(t *testing.T) {
 	defer c.mu.Unlock()
 	if c.orderGets != 0 {
 		t.Fatalf("consultas de pedidos = %d, quiero 0", c.orderGets)
+	}
+}
+
+// writerConLogin simula un ERP cuyo login puede (o no) escribir fuera de los borradores.
+type writerConLogin struct {
+	*mock.Adapter
+	verifica error // lo que devuelve VerifyWriteIsolation
+	veces    int
+}
+
+func (w *writerConLogin) VerifyWriteIsolation(context.Context) error {
+	w.veces++
+	return w.verifica
+}
+
+func TestConUnLoginInseguroNoSeConsultanNiSeEscribenPedidos(t *testing.T) {
+	c := newCloud(t)
+	c.pending = []map[string]any{
+		{"id": "11111111-1111-4111-8111-111111111111", "customer_code": "C00002", "status": "pending_sync",
+			"total_usd": 10.0, "exchange_rate_used": 40.0, "erp_order_reference": nil, "notes": nil, "created_at": "2026-11-26T00:00:00.000Z",
+			"items": []map[string]any{{"sku": "P00001", "quantity": 1, "unit_price_usd": 10.0}}},
+	}
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	var closers []func() error
+	a, err := New(context.Background(), cfg, NewLogger(discard(), cfg.Log), &closers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		for _, f := range closers {
+			f()
+		}
+	}()
+	m := a.erp.(*mock.Adapter)
+	m.Add(erpProduct("P00001"))
+	w := &writerConLogin{Adapter: m, verifica: &erp.UnsafeLoginError{Login: "sa", Problems: []string{"es sysadmin"}}}
+	a.erp = w
+	a.orders.Writer = w
+
+	// Login que puede escribir fuera de los borradores: el ciclo falla y NO toca la nube ni el ERP.
+	if err := a.once(context.Background(), false); err == nil || !strings.Contains(err.Error(), "puede escribir fuera de los borradores") {
+		t.Fatalf("err = %v, quiero el aviso del login inseguro", err)
+	}
+	c.mu.Lock()
+	gets := c.orderGets
+	c.mu.Unlock()
+	if gets != 0 || len(m.Drafts()) != 0 {
+		t.Fatalf("consultas de pedidos = %d, borradores = %d: con un login inseguro no debe pasar nada", gets, len(m.Drafts()))
+	}
+
+	// Un error de conexión al verificar tampoco deja escribir (no se sabe si es seguro), y se reintenta.
+	w.verifica = errors.New("conexión rechazada")
+	if err := a.once(context.Background(), false); err == nil {
+		t.Fatal("sin poder verificar el login no debe escribir")
+	}
+	if len(m.Drafts()) != 0 {
+		t.Fatal("se escribió un borrador sin verificar el login")
+	}
+
+	// Se corrige el login: el siguiente ciclo verifica y trabaja, y no vuelve a verificar cada vez.
+	w.verifica = nil
+	if err := a.once(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Drafts()) != 1 {
+		t.Fatalf("borradores = %d, quiero 1", len(m.Drafts()))
+	}
+	veces := w.veces
+	if err := a.once(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	if w.veces != veces {
+		t.Fatalf("verificó el login %d veces más: una vez aprobado no hay que repetirlo", w.veces-veces)
 	}
 }

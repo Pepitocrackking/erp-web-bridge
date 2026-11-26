@@ -60,6 +60,9 @@ customer:
 #   - `web_id` guarda el id del pedido web y debe tener índice ÚNICO en el ERP: es lo que impide
 #     que reintentar un pedido cree un borrador duplicado.
 order_draft:
+  # Tablas fiscales que el agente jamás debe poder escribir: el borrador no puede apuntar a ellas y,
+  # al arrancar, se comprueba que su login SQL no tenga permiso de escritura sobre ninguna.
+  protected_tables: [SAFACT, SAITEMFAC, SAACXC]
   header:
     table: SAPEDIDO
     number_sequence: { name: SQ_SAPEDIDO_WEB, prefix: PW, width: 7 }

@@ -45,10 +45,12 @@ func (a *Adapter) CreateOrderDraft(ctx context.Context, o erp.OrderDraft) (erp.D
 		return erp.DraftResult{Reference: ref, Created: false}, nil
 	}
 
-	tx, err := b.BeginTx(ctx, nil)
+	stx, err := b.BeginTx(ctx, nil)
 	if err != nil {
 		return erp.DraftResult{}, fmt.Errorf("saint: iniciando la transacción: %w", err)
 	}
+	// Todo lo que se ejecuta aquí pasa por la lista blanca: SELECT, o INSERT en las tablas del borrador.
+	tx := guardedTx{tx: stx, allowed: m.OrderDraft.WriteTables()}
 	defer tx.Rollback() //nolint:errcheck // tras Commit es un no-op
 
 	// 2) Validaciones permanentes: el cliente y los SKU deben existir y estar activos en el ERP.
@@ -60,8 +62,8 @@ func (a *Adapter) CreateOrderDraft(ctx context.Context, o erp.OrderDraft) (erp.D
 	}
 
 	// 3) Escritura: cabecera (con el correlativo) y renglones.
-	var ref string
-	if err := tx.QueryRowContext(ctx, m.insertHeaderSQL(o.Notes != ""), m.insertHeaderArgs(o)...).Scan(&ref); err != nil {
+	ref, err := insertReturning(ctx, tx, m.insertHeaderSQL(o.Notes != ""), m.insertHeaderArgs(o)...)
+	if err != nil {
 		// Otro proceso pudo crearlo entre el paso 1 y este (índice único): si existe, es un reintento.
 		_ = tx.Rollback()
 		if ref2, found, err2 := a.existingDraft(ctx, a.db, o.WebOrderID); err2 == nil && found {
@@ -80,6 +82,26 @@ func (a *Adapter) CreateOrderDraft(ctx context.Context, o erp.OrderDraft) (erp.D
 	}
 	a.log.Info("borrador creado", "pedido_web", o.WebOrderID, "referencia", ref, "renglones", len(o.Lines))
 	return erp.DraftResult{Reference: ref, Created: true}, nil
+}
+
+// insertReturning ejecuta un INSERT ... OUTPUT y devuelve el valor generado (el número del borrador).
+func insertReturning(ctx context.Context, tx guardedTx, query string, args ...any) (string, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("el INSERT no devolvió el número del borrador")
+	}
+	var v string
+	if err := rows.Scan(&v); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(v), rows.Close()
 }
 
 func round2(v float64) float64 { return math.Round(v*100) / 100 }

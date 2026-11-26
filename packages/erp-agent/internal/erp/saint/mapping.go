@@ -48,6 +48,8 @@ type Mapping struct {
 	ERP      string `yaml:"erp"`
 	Product  Entity `yaml:"product"`
 	Customer Entity `yaml:"customer"`
+	// StockByDepot es informativo (el agente no lo lee hoy), pero cuenta como dato maestro que no se escribe.
+	StockByDepot *Entity `yaml:"stock_by_depot"`
 	// OrderDraft dice dónde se escriben los pedidos web (solo borradores). Es opcional: sin él,
 	// el agente solo lee y los pedidos quedan pendientes.
 	OrderDraft *OrderDraft `yaml:"order_draft"`
@@ -83,7 +85,7 @@ func ParseMapping(data []byte) (*Mapping, error) {
 		return nil, err
 	}
 	if m.OrderDraft != nil {
-		if err := m.OrderDraft.validate(); err != nil {
+		if err := m.OrderDraft.validate(&m); err != nil {
 			return nil, err
 		}
 	}

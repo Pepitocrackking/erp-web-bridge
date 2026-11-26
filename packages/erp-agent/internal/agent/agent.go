@@ -83,6 +83,8 @@ type App struct {
 	syncer *agentsync.Syncer
 	orders *orders.Processor // nil si el ERP no sabe escribir pedidos o está desactivado
 
+	isolationOK bool // el login del ERP ya se verificó: no puede escribir fuera de los borradores
+
 	lastSyncErr atomic.Value // string
 }
 
@@ -168,6 +170,9 @@ func (a *App) ordersCycle(ctx context.Context) error {
 	if a.orders == nil {
 		return nil
 	}
+	if err := a.ensureWriteIsolation(ctx); err != nil {
+		return err
+	}
 	res, err := a.orders.Cycle(ctx)
 	if err != nil {
 		a.log.Error("ciclo de pedidos con errores", "error", err.Error())
@@ -177,6 +182,32 @@ func (a *App) ordersCycle(ctx context.Context) error {
 			"ya_existian", res.Existing, "rechazados", res.Rejected)
 	}
 	return err
+}
+
+// ensureWriteIsolation verifica, contra el propio ERP, que el login del agente solo puede escribir
+// borradores (segunda capa del cero riesgo contable). Mientras no pase, NO se escribe ningún pedido;
+// se repite en cada ciclo hasta que pase (así corregir el login no exige reiniciar). El error llega
+// al heartbeat y por tanto al panel.
+func (a *App) ensureWriteIsolation(ctx context.Context) error {
+	if a.isolationOK {
+		return nil
+	}
+	chk, ok := a.erp.(erp.WriteIsolationChecker)
+	if !ok {
+		a.isolationOK = true
+		return nil
+	}
+	if err := chk.VerifyWriteIsolation(ctx); err != nil {
+		if erp.IsUnsafeLogin(err) {
+			a.log.Error("pedidos detenidos: el login del ERP puede escribir fuera de los borradores", "error", err.Error())
+		} else {
+			a.log.Warn("no se pudo verificar el login del ERP; se reintenta en el próximo ciclo", "error", err.Error())
+		}
+		return err
+	}
+	a.isolationOK = true
+	a.log.Info("login del ERP verificado: solo puede escribir borradores")
+	return nil
 }
 
 // once: un ciclo y vaciar la cola. Falla si la cola no queda vacía.
