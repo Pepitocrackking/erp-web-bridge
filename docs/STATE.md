@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 2, Monorepo y CI
 - **Rama:** `phase-2/monorepo-ci` (creada desde `main` tras el merge del PR #2; aún sin push)
-- **Última tarea completada:** 2.4 (workflow de CI, validado solo en sintaxis). Antes, 2.3 (contratos Zod), 2.2 (módulo Go base) y 2.1 (workspace pnpm + Turborepo). La Fase 1 está completa y fusionada.
-- **Estado de la fase:** en curso. Siguiente tarea: 2.5
+- **Última tarea completada:** 2.5 (ESLint + Prettier + gofmt/vet en CI). Antes, 2.4 (workflow de CI, validado solo en sintaxis), 2.3 (contratos Zod), 2.2 (módulo Go base) y 2.1 (workspace pnpm + Turborepo). La Fase 1 está completa y fusionada.
+- **Estado de la fase:** todas las tareas hechas; falta `phase-gate` (Gate 2).
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -17,7 +17,9 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Cómo levantarlo: `bash scripts/saint-sandbox.sh up` (ver "Cómo levantar el proyecto").
 
 ## Siguiente acción
-Ejecutar la tarea **2.5**: ESLint y Prettier (TS), `go vet` y `gofmt` (Go); conectar `pnpm lint` (hoy solo `tsc --noEmit` por paquete) y `pnpm format`, y añadir la comprobación de formato (`prettier --check`, `gofmt -l`) al CI en `.github/workflows/ci.yml`. Luego `phase-gate` con el Gate 2.
+Todas las tareas de la Fase 2 (2.1 a 2.5) están hechas. Ejecutar **`phase-gate`** con el Gate 2 (ver ROADMAP): clon limpio en un directorio nuevo con `pnpm install && pnpm build && pnpm test`, `go build ./... && go test ./...`, y CI en verde en el propio PR (`gh pr checks`) antes del merge. Si el CI falla en GitHub, corregir y repetir; no hay merge sin verde.
+
+Hecho en 2.5: `eslint.config.mjs` (typescript-eslint recomendado + eslint-config-prettier; ignora `packages/erp-agent` e `infra`), `.prettierrc.json`, `.prettierignore` (excluye md, docs, infra, scripts, `docker-compose.yml`, Go). Cada paquete: `lint` = `tsc --noEmit && eslint .`. Raíz: `pnpm format` y `pnpm format:check`. Go: `gofmt -l` y `go vet` van en el job `go` del CI (no hay script pnpm para Go). ESLint probado con una infracción real.
 
 Hecho en 2.4: `.github/workflows/ci.yml` con dos jobs (`typescript`: install --frozen-lockfile, lint, test, build; `go`: vet, build, test en `packages/erp-agent`), en `pull_request` y push a `main`. Sintaxis validada en local; **su verde real solo se comprueba en el PR** (`gh pr checks`). Pendiente de verificar allí: que `pnpm/action-setup@v4` lea `packageManager` (pnpm 12.14.0) y que `actions/setup-go` resuelva `go 1.26`.
 

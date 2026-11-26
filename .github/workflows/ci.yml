@@ -28,6 +28,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
@@ -46,6 +47,14 @@ jobs:
           go-version-file: packages/erp-agent/go.mod
           cache-dependency-path: packages/erp-agent/go.mod
 
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Archivos sin formatear con gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./...

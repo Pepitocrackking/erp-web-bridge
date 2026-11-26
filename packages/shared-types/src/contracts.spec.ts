@@ -130,7 +130,8 @@ describe("syncBatchSchema", () => {
     const batch = { ...base, batch_id: "123", kind: "customers", records: [] };
     expect(syncBatchSchema.safeParse(batch).success).toBe(false);
     expect(
-      syncBatchSchema.safeParse({ ...base, sent_at: "ayer", kind: "customers", records: [] }).success,
+      syncBatchSchema.safeParse({ ...base, sent_at: "ayer", kind: "customers", records: [] })
+        .success,
     ).toBe(false);
   });
 

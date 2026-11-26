@@ -57,7 +57,7 @@ Rama: `phase-2/monorepo-ci`
 - [x] **2.2** Módulo Go en `packages/erp-agent` con estructura base (`cmd/`, `internal/`).
 - [x] **2.3** `shared-types`: contratos DTO (producto, cliente, pedido, lote de sincronización) con validación Zod.
 - [x] **2.4** GitHub Actions: lint, test y build de TypeScript y de Go en cada PR.
-- [ ] **2.5** Lint y formato configurados (ESLint/Prettier y `golangci-lint` o `go vet`).
+- [x] **2.5** Lint y formato configurados (ESLint/Prettier y `golangci-lint` o `go vet`).
 
 ### Gate 2
 - [ ] `pnpm install && pnpm build && pnpm test` terminan en verde desde un clon limpio.
