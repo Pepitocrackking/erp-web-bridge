@@ -113,10 +113,10 @@ Rama: `phase-5/agent`
 - [x] **5.7** Configuración por archivo, logs estructurados y `heartbeat`.
 
 ### Gate 5
-- [ ] E2E real: sandbox, agente, API, base de datos con 300 o más productos sincronizados y conteos iguales.
-- [ ] Se muta 1 producto: el agente envía exactamente 1 registro (se comprueba en `sync_logs`).
-- [ ] Se corta la red con el agente corriendo: no pierde datos y se pone al día al volver.
-- [ ] Pruebas unitarias del hash y del diff en verde.
+- [x] E2E real: sandbox, agente, API, base de datos con 300 o más productos sincronizados y conteos iguales.
+- [x] Se muta 1 producto: el agente envía exactamente 1 registro (se comprueba en `sync_logs`).
+- [x] Se corta la red con el agente corriendo: no pierde datos y se pone al día al volver.
+- [x] Pruebas unitarias del hash y del diff en verde.
 
 ---
 

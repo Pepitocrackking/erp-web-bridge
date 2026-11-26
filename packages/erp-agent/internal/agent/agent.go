@@ -146,8 +146,9 @@ func (a *App) cycle(ctx context.Context, force bool, kick chan<- struct{}) {
 	if err != nil {
 		a.log.Error("ciclo de sincronización con errores", "error", err.Error())
 	}
+	depth, _ := a.store.Depth(ctx)
 	a.log.Info("ciclo terminado", "productos_cambiados", res.ProductsChanged, "productos_sin_cambios", res.ProductsUnchanged,
-		"clientes_cambiados", res.CustomersChanged, "lotes_encolados", res.Batches)
+		"clientes_cambiados", res.CustomersChanged, "lotes_encolados", res.Batches, "cola_pendiente", depth)
 	if res.Batches > 0 && kick != nil {
 		select {
 		case kick <- struct{}{}:
