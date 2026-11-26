@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 2, Monorepo y CI
 - **Rama:** `phase-2/monorepo-ci` (creada desde `main` tras el merge del PR #2; aún sin push)
-- **Última tarea completada:** 2.1 (workspace pnpm + Turborepo con `apps/web`, `apps/api`, `packages/shared-types`; build, test y lint en verde y `GET /health` verificado con la API compilada). La Fase 1 está completa y fusionada.
-- **Estado de la fase:** en curso. Siguiente tarea: 2.2
+- **Última tarea completada:** 2.2 (módulo Go `packages/erp-agent` con `cmd/erp-agent` e `internal/version`; `go build`, `go test`, `go vet` y `gofmt` en verde). Antes, 2.1 (workspace pnpm + Turborepo, `GET /health` verificado). La Fase 1 está completa y fusionada.
+- **Estado de la fase:** en curso. Siguiente tarea: 2.3
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -17,7 +17,9 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Cómo levantarlo: `bash scripts/saint-sandbox.sh up` (ver "Cómo levantar el proyecto").
 
 ## Siguiente acción
-Ejecutar la tarea **2.2**: módulo Go en `packages/erp-agent` con estructura base (`cmd/`, `internal/`). Debe cumplir `go build ./... && go test ./...`.
+Ejecutar la tarea **2.3**: contratos Zod en `packages/shared-types` (producto, cliente, pedido, lote de sincronización), alineados con el manual (sección 5) y los campos canónicos de `infra/saint-sandbox/mapping.saint.yaml`. Con pruebas que acepten datos válidos y rechacen inválidos. Reemplaza el `healthSchema` de humo solo si nada lo usa (la API lo usa en `/health`: conservarlo).
+
+Hecho en 2.2: módulo Go `github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent` (go 1.26), fuera de pnpm.
 
 Hecho en 2.1 (decisiones que condicionan lo siguiente):
 - La API usa **NestJS 11.x** (CommonJS), no 12: Nest 12 es solo ESM y rompe jest/ts-jest y el consumo de `shared-types` (CJS). No subir a 12 sin migrar todo a ESM.
