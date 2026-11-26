@@ -2,20 +2,12 @@
 
 import { createOrderInputSchema, usdToBs, webOrderSchema } from "@erp-web-bridge/shared-types";
 import type { CartItem } from "../../lib/cart";
+import { apiUrl } from "../../lib/api-url";
 import { fetchMembership } from "../../lib/catalog";
 import { mapOrderError, type OrderFailure } from "../../lib/orders";
 import type { Quote } from "../../lib/quote";
 import { fetchQuote } from "../../lib/quote-server";
 import { createClient } from "../../lib/supabase/server";
-
-/** URL de la API para el servidor de Next (no se expone al navegador; así no hace falta CORS). */
-function apiUrl(): string {
-  return (
-    process.env.API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://localhost:3001"
-  ).replace(/\/+$/, "");
-}
 
 /** Usuario y membresía de comprador, o null si no hay sesión o no es un comprador. */
 async function buyerContext() {

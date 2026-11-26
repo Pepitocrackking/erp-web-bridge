@@ -57,6 +57,11 @@ export default async function CatalogPage({ searchParams }: { searchParams: Sear
         </div>
         <div className="flex items-center gap-4 text-sm">
           {membership.role === "customer" && <CartLink userId={user.id} />}
+          {membership.role !== "customer" && (
+            <Link href="/admin" className="underline">
+              Panel
+            </Link>
+          )}
           {(membership.role === "owner" || membership.role === "admin") && (
             <Link href="/admin/solicitudes" className="underline">
               Solicitudes de acceso

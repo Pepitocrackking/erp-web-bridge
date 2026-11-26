@@ -5,14 +5,22 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 6, Web (catálogo, carrito y panel)
 - **Rama:** `phase-6/web` (creada desde `main` tras el merge del PR #6; aún sin push)
-- **Última tarea completada:** 6.3 (carrito y checkout con límite de crédito).
-- **Estado de la fase:** en curso. Siguiente tarea: 6.4 (esfuerzo medio-alto: panel admin con Realtime).
+- **Última tarea completada:** 6.4 (panel admin en tiempo real).
+- **Estado de la fase:** en curso. Siguiente tarea: 6.5 (esfuerzo bajo: botón "Entrar como Administrador Demo"). Después 6.6 (medio-alto), 6.7 (medio) y el Gate 6.
 
 ### Decisiones de la Fase 6 (tanda de dudas resuelta el 2026-11-26; no volver a preguntar)
 - **6.2:** solicitud de acceso. El comprador se registra con Supabase Auth y deja una solicitud (`customer_access_requests`: org, email, RIF, estado pending/approved/rejected). Hasta que el admin la apruebe no ve nada por RLS; al aprobar se crea su `org_members` (rol `customer`) con el cliente que coincida por RIF/código. Migración nueva + pruebas de RLS.
 - **E2E (Playwright):** solo en local; el CI no cambia. La evidencia va a `docs/evidence/phase-6.md`.
 - **6.6:** el simulador envía por `POST /v1/sync/products` desde una acción de servidor de Next con la clave de agente de la organización demo (solo en el servidor).
 - **6.5 y 6.7:** botón demo = acción de servidor que entra como `admin@demo-saint.test`, solo con `DEMO_MODE=true`. PWA = manifest + service worker propio (precaché del shell y stale-while-revalidate del catálogo), validada con Lighthouse. Componentes propios con Tailwind, sin librería de UI.
+
+### Hecho en la 6.4 (para no rehacerlo)
+- Migración `..0800_admin_realtime.sql`: crea (si falta) la publicación `supabase_realtime` y le añade `sync_logs`, `web_orders` y `exchange_rates`; da SELECT a `authenticated` sobre `organizations.last_heartbeat_at` y `agent_version`. `organizations` **no** se publica (permisos por columna); el panel la relee cuando llega un evento de la bitácora y cada 30 s (el latido no emite eventos). 2 pruebas nuevas en `rls.test.mjs` (ahora 48).
+- `/admin` (owner/admin/staff; el comprador va a `/catalogo`): `app/admin/page.tsx` (lecturas iniciales con RLS) + `dashboard.tsx` (cliente: se suscribe con `lib/supabase/client.ts` a `postgres_changes` filtrado por `org_id`; badge "En vivo"). Secciones: estado de sincronización (agente conectado si el último latido tiene < 3 min), tasa (formulario solo owner/admin por `setExchangeRate` → `POST /v1/orgs/:orgId/exchange-rate` con el JWT de la sesión), pedidos (con estado y referencia del ERP), clientes (límite, deuda, disponible) y bitácora. Lógica pura y lecturas en `lib/admin.ts`. El enlace "Panel" está en la cabecera del catálogo para el personal; `/admin/solicitudes` sigue como subpágina.
+- `lib/sync-hash.ts`: `productSyncHash` (SHA-256 de `sku\x1fprecio\x1fstock\x1fnombre`, 2 decimales) con los **mismos vectores fijos del agente Go**; solo servidor (usa `node:crypto`). Lo usará el simulador de la 6.6 para enviar lotes válidos a `POST /v1/sync/products` (el contrato exige `sync_hash`, `batch_id`, `sent_at`, `full_reconciliation`, `kind: "products"`).
+- `lib/api-url.ts` centraliza la URL de la API para las acciones de servidor.
+- E2E `e2e/admin.spec.ts` (8 pruebas): **tres en vivo por Realtime sin recargar** (tasa vista por otro admin, sincronización del agente por la API real, pedido nuevo del comprador). Total E2E: 32; pasan con la base recién reiniciada y también sin reiniciar (las pruebas son tolerantes a datos de corridas anteriores). Las pruebas de tasa la restauran a 36,50 en un `finally`.
+- Trampa: no poner `key` al formulario de tasa ligada a la tasa vigente: un evento de Realtime que llegue antes que la respuesta de la acción lo remonta y borra el mensaje de éxito.
 
 ### Hecho en la 6.3 (para no rehacerlo)
 - **Corrección a la Fase 4:** el Auth de Supabase (CLI 3.4 y proyectos nuevos) firma los JWT de usuario con **ES256**, no HS256, y la API solo aceptaba HS256: con un login real daba 401 siempre (sus pruebas usaban tokens HS256 autofirmados). Ahora `apps/api/src/auth/` verifica ambos: `jwks.ts` (`JwksCache`: claves EC P-256 del JWKS, caché de 10 min, una descarga como máximo cada 30 s, una sola descarga en vuelo, copia vieja hasta 1 h si Auth cae), `jwt.ts` (`verifyEs256Jwt`, firma `r||s` de 64 bytes, `decodeHeader`), `jwt-verifier.ts` (`JwtVerifier` elige por `alg`; HS256 solo con el secreto, ES256 solo con claves del JWKS: sin confusión de algoritmo). `JwtGuard` ahora es asíncrono. Variables `SUPABASE_JWKS_URL` (por defecto el JWKS local) y `SUPABASE_JWT_ISSUER` (opcional). Tests: `jwt.spec`, `jwks.spec` y 4 de integración con un JWKS falso (API: 175 pruebas).
@@ -143,4 +151,4 @@ Ejecutar la tarea **6.2**, luego 6.3 a 6.7 en orden, y `phase-gate` con el Gate 
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-26. Fase 6 en curso: tareas 6.1 a 6.3 hechas (24 E2E, 39 pruebas de web, 100 de shared-types, 46 de RLS, 175 de la API en verde).
+2026-11-26. Fase 6 en curso: tareas 6.1 a 6.4 hechas (32 E2E, 57 pruebas de web, 100 de shared-types, 48 de RLS, 175 de la API en verde).

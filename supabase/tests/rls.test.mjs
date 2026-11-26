@@ -915,6 +915,42 @@ describe("solicitudes de acceso de compradores", () => {
     }));
 });
 
+describe("panel en tiempo real", () => {
+  it("la publicación de Realtime incluye bitácora, pedidos y tasas, y no organizations", async () => {
+    const r = await pool.query(
+      `SELECT tablename FROM pg_publication_tables
+        WHERE pubname = 'supabase_realtime' AND schemaname = 'public' ORDER BY tablename`,
+    );
+    const tables = r.rows.map((row) => row.tablename);
+    for (const t of ["exchange_rates", "sync_logs", "web_orders"]) {
+      assert.ok(tables.includes(t), `${t} debe estar publicada`);
+    }
+    assert.ok(!tables.includes("organizations"), "organizations no se publica");
+  });
+
+  it("los miembros leen el latido del agente de su empresa; anon no; la clave sigue oculta", () =>
+    withTenants(async (c) => {
+      await c.query(
+        `UPDATE public.organizations SET last_heartbeat_at = now(), agent_version = '1.2.3' WHERE id = $1`,
+        [ORG_A],
+      );
+      for (const user of [U_STAFF_A, U_CUST_A1]) {
+        await as(c, user);
+        const r = await attempt(
+          c,
+          `SELECT agent_version, last_heartbeat_at IS NOT NULL AS seen FROM public.organizations`,
+        );
+        assert.deepEqual(r.rows, [{ agent_version: "1.2.3", seen: true }]);
+      }
+      await as(c, U_OWNER_B);
+      const other = await attempt(c, `SELECT agent_version FROM public.organizations`);
+      assert.deepEqual(other.rows, [{ agent_version: null }], "solo ve su propia empresa");
+      assertDenied(await attempt(c, `SELECT api_key_hash FROM public.organizations`), "api_key_hash");
+      await as(c, null);
+      assertDenied(await attempt(c, `SELECT agent_version FROM public.organizations`), "anon");
+    }));
+});
+
 describe("datos sensibles y tasa de cambio", () => {
   it("api_key_hash no se puede leer ni modificar desde un usuario", () =>
     withTenants(async (c) => {
