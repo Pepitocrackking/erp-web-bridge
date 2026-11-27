@@ -1,4 +1,7 @@
+import { request as httpsRequest } from "node:https";
+import { rootCertificates } from "node:tls";
 import { EXCHANGE_RATE_MAX } from "@erp-web-bridge/shared-types";
+import { SECTIGO_OV_R36_PEM } from "./bcv-ca";
 
 /** Una lectura de tasa (Bs por USD) de una fuente externa. */
 export interface SourceRate {
@@ -77,28 +80,81 @@ export function parseDolarApi(body: unknown): { rate: number; valueDate: string 
 
 type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
+const MAX_BODY_BYTES = 2_000_000;
+const REQUEST_HEADERS = { "user-agent": "Mozilla/5.0 (compatible; erp-web-bridge)", accept: "*/*" };
+
+/**
+ * GET por https con certificados intermedios EXTRA además de las raíces de confianza de Node.
+ * La verificación TLS sigue completa (nombre de host, vigencia, cadena hasta una raíz): lo único
+ * que se añade es un intermedio que el servidor no envía. Sin seguir redirecciones.
+ */
+function getWithExtraCa(
+  url: string,
+  timeoutMs: number,
+  extraCa: string[],
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(
+      url,
+      {
+        method: "GET",
+        headers: REQUEST_HEADERS,
+        ca: [...rootCertificates, ...extraCa],
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on("data", (c: Buffer) => {
+          size += c.length;
+          if (size > MAX_BODY_BYTES) req.destroy(new Error("respuesta demasiado grande"));
+          else chunks.push(c);
+        });
+        res.on("end", () =>
+          resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }),
+        );
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error(`sin respuesta en ${timeoutMs} ms`)));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 async function getText(
   provider: string,
   url: string,
   timeoutMs: number,
   fetchFn: FetchLike,
+  extraCa: string[] = [],
 ): Promise<{ text: string }> {
-  let res: Response;
+  let status: number;
+  let text: string;
   try {
-    res = await fetchFn(url, {
-      headers: { "user-agent": "Mozilla/5.0 (compatible; erp-web-bridge)", accept: "*/*" },
-      redirect: "manual", // una redirección no se sigue hacia otro destino
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    if (extraCa.length > 0 && url.startsWith("https:")) {
+      ({ status, text } = await getWithExtraCa(url, timeoutMs, extraCa));
+    } else {
+      const res = await fetchFn(url, {
+        headers: REQUEST_HEADERS,
+        redirect: "manual", // una redirección no se sigue hacia otro destino
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      status = res.status;
+      text = await res.text();
+    }
   } catch (err) {
-    throw new RateSourceError(provider, `no se pudo conectar (${(err as Error).message})`);
+    const cause = (err as { cause?: { code?: string } }).cause?.code;
+    throw new RateSourceError(
+      provider,
+      `no se pudo conectar (${(err as Error).message}${cause ? `: ${cause}` : ""})`,
+    );
   }
-  if (res.status < 200 || res.status >= 300) {
-    throw new RateSourceError(provider, `respondió HTTP ${res.status}`);
-  }
+  if (status < 200 || status >= 300)
+    throw new RateSourceError(provider, `respondió HTTP ${status}`);
   // Tope de tamaño: la portada pesa ~160 KB; un cuerpo enorme no es la portada.
-  const text = await res.text();
-  if (text.length > 2_000_000) throw new RateSourceError(provider, "respuesta demasiado grande");
+  if (text.length > MAX_BODY_BYTES)
+    throw new RateSourceError(provider, "respuesta demasiado grande");
   return { text };
 }
 
@@ -108,10 +164,18 @@ export class BcvSource implements RateSource {
     private readonly url: string,
     private readonly timeoutMs: number,
     private readonly fetchFn: FetchLike = fetch,
+    /** Intermedios que el servidor del BCV no envía (ver bcv-ca.ts). Vacío = solo las raíces de Node. */
+    private readonly extraCa: string[] = [SECTIGO_OV_R36_PEM],
   ) {}
 
   async fetchRate(): Promise<SourceRate> {
-    const { text } = await getText(this.provider, this.url, this.timeoutMs, this.fetchFn);
+    const { text } = await getText(
+      this.provider,
+      this.url,
+      this.timeoutMs,
+      this.fetchFn,
+      this.extraCa,
+    );
     return { provider: this.provider, ...parseBcvHtml(text) };
   }
 }

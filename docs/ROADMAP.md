@@ -179,9 +179,9 @@ Rama: `phase-9/bcv-rate`
 - [x] **9.4** Panel: interruptor «Tasa automática (BCV)», fuente y hora de la última tasa, botón «Actualizar ahora» y respaldo manual intacto.
 
 ### Gate 9
-- [ ] Con las fuentes simuladas: la tasa se actualiza, cae a la secundaria, cae a la manual y el panel lo refleja.
-- [ ] Una lectura absurda (fuera de rango o salto > umbral) no se aplica.
-- [ ] Prueba real de red contra bcv.org.ve (informativa: se documenta el resultado, no bloquea).
+- [x] Con las fuentes simuladas: la tasa se actualiza, cae a la secundaria, cae a la manual y el panel lo refleja.
+- [x] Una lectura absurda (fuera de rango o salto > umbral) no se aplica.
+- [x] Prueba real de red contra bcv.org.ve (informativa: se documenta el resultado, no bloquea).
 
 ---
 

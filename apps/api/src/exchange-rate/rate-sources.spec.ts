@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -200,5 +202,63 @@ describe("checkJump", () => {
   it("sin tasa anterior, o con la inicial 1.0, acepta cualquier valor", () => {
     expect(checkJump(null, 926, 25).ok).toBe(true);
     expect(checkJump(1, 926, 25).ok).toBe(true);
+  });
+});
+
+describe("TLS de la fuente del BCV", () => {
+  let dir: string;
+  let server: Server | undefined;
+  let url: string;
+  let cert: string;
+  let opensslOk = true;
+
+  beforeAll(async () => {
+    dir = mkdtempSync(join(tmpdir(), "bcv-tls-"));
+    try {
+      execFileSync(
+        "openssl",
+        [
+          ...["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2"],
+          ...["-keyout", join(dir, "k.pem"), "-out", join(dir, "c.pem")],
+          ...["-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"],
+        ],
+        { stdio: "ignore" },
+      );
+    } catch {
+      opensslOk = false; // sin openssl no se puede fabricar el certificado de prueba
+      return;
+    }
+    cert = readFileSync(join(dir, "c.pem"), "utf8");
+    const https = await import("node:https");
+    const s = https.createServer({ key: readFileSync(join(dir, "k.pem")), cert }, (_req, res) => {
+      res.setHeader("content-type", "text/html");
+      res.end(REAL_HTML);
+    });
+    server = s as unknown as Server;
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    url = `https://127.0.0.1:${(s.address() as AddressInfo).port}/`;
+  });
+  afterAll(async () => {
+    if (server) {
+      server.closeAllConnections();
+      await new Promise((r) => server?.close(r));
+    }
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("la verificación sigue activa: un certificado que nadie avaló se rechaza", async () => {
+    if (!opensslOk) return;
+    await expect(new BcvSource(url, 3000).fetchRate()).rejects.toThrow(/no se pudo conectar/);
+  });
+
+  it("con el certificado como CA extra de ESA fuente, se acepta", async () => {
+    if (!opensslOk) return;
+    const got = await new BcvSource(url, 3000, fetch, [cert]).fetchRate();
+    expect(got.rate).toBeCloseTo(926.3592, 4);
+  });
+
+  it("la CA extra no se aplica a la otra fuente", async () => {
+    if (!opensslOk) return;
+    await expect(new DolarApiSource(url, 3000).fetchRate()).rejects.toBeInstanceOf(RateSourceError);
   });
 });
