@@ -43,4 +43,9 @@ orders:
 
 log:
   level: info # debug | info | warn | error
-  format: json # json | text (a stderr)
+  format: json # json | text
+  # Archivo de log (vacío = solo stderr). Como servicio de Windows no hay stderr: si falta, el servicio
+  # escribe erp-agent.log junto a la base local. Rota por tamaño: agent.log -> agent.log.1 -> ...
+  file: ""
+  max_size_mb: 10 # tamaño a partir del cual se rota
+  max_backups: 5 # copias que se conservan (0 = se trunca)

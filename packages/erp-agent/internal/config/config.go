@@ -77,10 +77,16 @@ type Orders struct {
 	Limit   int  `yaml:"limit"` // pedidos pendientes que se piden por ciclo (1 a 500)
 }
 
-// Log: nivel y formato de los logs (siempre a stderr).
+// Log: nivel, formato y destino de los logs. Sin File van a stderr; con File
+// van a ese archivo (con rotación por tamaño) y, en consola, también a stderr.
+// Un servicio de Windows no tiene stderr: allí File es obligatorio en la
+// práctica (si falta, el servicio usa erp-agent.log junto a la base local).
 type Log struct {
-	Level  string `yaml:"level"`  // debug | info | warn | error
-	Format string `yaml:"format"` // json | text
+	Level      string `yaml:"level"`       // debug | info | warn | error
+	Format     string `yaml:"format"`      // json | text
+	File       string `yaml:"file"`        // ruta del archivo de log; vacío = solo stderr
+	MaxSizeMB  int    `yaml:"max_size_mb"` // tamaño a partir del cual se rota (1 o más)
+	MaxBackups int    `yaml:"max_backups"` // copias rotadas que se conservan (0 a 100)
 }
 
 // Defaults devuelve la configuración con los valores por defecto.
@@ -91,7 +97,7 @@ func Defaults() Config {
 		Store:     Store{Path: "agent.db"},
 		Heartbeat: Heartbeat{Interval: time.Minute},
 		Orders:    Orders{Enabled: true, Limit: 50},
-		Log:       Log{Level: "info", Format: "json"},
+		Log:       Log{Level: "info", Format: "json", MaxSizeMB: 10, MaxBackups: 5},
 	}
 }
 
@@ -108,6 +114,7 @@ func Load(path string) (*Config, error) {
 	}
 	dir := filepath.Dir(path)
 	cfg.Store.Path = rel(dir, cfg.Store.Path)
+	cfg.Log.File = rel(dir, cfg.Log.File)
 	if cfg.ERP.Saint.MappingFile != "" {
 		cfg.ERP.Saint.MappingFile = rel(dir, cfg.ERP.Saint.MappingFile)
 	}
@@ -202,6 +209,12 @@ func (c *Config) Validate() error {
 	case "json", "text":
 	default:
 		bad("log.format inválido: %q (json | text)", c.Log.Format)
+	}
+	if c.Log.MaxSizeMB < 1 {
+		bad("log.max_size_mb debe ser de al menos 1 (es %d)", c.Log.MaxSizeMB)
+	}
+	if c.Log.MaxBackups < 0 || c.Log.MaxBackups > 100 {
+		bad("log.max_backups debe estar entre 0 y 100 (es %d)", c.Log.MaxBackups)
 	}
 	return errors.Join(errs...)
 }

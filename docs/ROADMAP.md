@@ -156,7 +156,7 @@ Rama: `phase-7/orders-to-erp`
 ## Fase 8: Endurecimiento y portafolio
 Rama: `phase-8/portfolio`
 
-- [ ] **8.1** Instalador del agente como servicio de Windows.
+- [x] **8.1** Instalador del agente como servicio de Windows.
 - [ ] **8.2** Alertas de "agente sin conexión" en el panel.
 - [ ] **8.3** README final con diagrama de arquitectura, capturas y guion de demo.
 - [ ] **8.4** Despliegue de web y API, con Supabase en la nube.

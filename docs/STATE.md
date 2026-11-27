@@ -5,8 +5,15 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 8, Endurecimiento y portafolio (la última)
 - **Rama:** `phase-8/portfolio` (creada desde `main` tras el merge del PR #8; aún sin push)
-- **Última tarea completada:** ninguna de la Fase 8. La Fase 7 está completa y fusionada.
-- **Estado de la fase:** por empezar. Siguiente tarea: 8.1
+- **Última tarea completada:** 8.1 (servicio de Windows, probado de verdad con elevación; evidencia en `docs/evidence/phase-8.md`).
+- **Estado de la fase:** en curso. Siguiente tarea: 8.2
+
+**Decisiones de la tanda de dudas de la Fase 8 (2026-11-26, ya resueltas, no volver a preguntar):**
+- **8.4 Despliegue:** solo listo en local. Dockerfiles, compose de producción y guía paso a paso, probados en local. **No** se despliega nada sin destino y credenciales.
+- **8.5 Licencia:** MIT, titular Orlando Guerra.
+- **8.1 Elevación:** se intenta y se pide al usuario aceptar el UAC (hecho; el UAC se lanza con `Start-Process powershell -Verb RunAs` y la salida va a un archivo del scratchpad). Si hay que repetir una prueba elevada, el Gate puede volver a pedirlo.
+- **8.2 Alertas:** aviso en el panel (banner + contador en la cabecera) y un hook `notify` opcional (webhook) en la API; sin correo ni SMTP.
+- **8.1 hecho así:** `erp-agent service install|uninstall|start|stop|status` (`internal/winsvc`), `LocalService`, arranque automático retrasado, reinicio a 5/15/60 s también ante salidas con error, `agent.yaml` con ACL restringida, `log.file` con rotación (`internal/logfile`), Visor de eventos (origen `ErpAgent`), `agent.Options.Ready`. Prueba real: `scripts/test-windows-service.ps1` (admin; 23 comprobaciones, TODO OK). Los secretos van en `agent.yaml`, no por entorno del servicio.
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -50,23 +57,17 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Backlog que quedó fuera: ejecutar el agente como servicio de Windows (Fase 8); validar los nombres de pedidos y facturas contra un Saint real; estados `approved`/`rejected` que vengan del ERP (el panel los muestra, nada los produce); `/pedidos` del comprador; validar stock; selector de organización.
 
 ## Siguiente acción
-Ejecutar la tarea **8.1** del bloque `## Fase 8` de `docs/ROADMAP.md` (instalador del agente como servicio de Windows). Después 8.2 a 8.6 en orden y `phase-gate` con el Gate 8. Como es la primera tarea de la fase, `next-task` hace la **única tanda de dudas** con AskUserQuestion (ver abajo las que sí requieren al usuario); lo demás, decidir con criterio y anotarlo aquí.
+Ejecutar la tarea **8.2** del bloque `## Fase 8` de `docs/ROADMAP.md` (alertas de agente sin conexión en el panel). Después 8.3 a 8.6 en orden y `phase-gate` con el Gate 8. La tanda de dudas de la fase ya se hizo (ver «Decisiones de la tanda» arriba): no preguntar más.
 
-**Esfuerzo sugerido:** alto para 8.1 (servicio de Windows: privilegios, recuperación, instalación y desinstalación probadas) y 8.5 (seguridad); medio para 8.4 (despliegue) y 8.6; bajo para 8.2 y 8.3.
+**Esfuerzo sugerido:** medio para 8.2; bajo para 8.3; medio para 8.4 y 8.6; alto para 8.5 (seguridad).
 
 **Lo que ya existe (no rehacer):**
-- **Agente** (`packages/erp-agent`, módulo Go, `CGO_ENABLED=0`): `cmd/erp-agent` (flags `-config`, `-once`, `-reconcile`), `internal/agent` (`Run(ctx, cfg, log, opts)` ya hace apagado limpio al cancelar el contexto; `NewLogger` escribe a **stderr**), `internal/config` (YAML estricto con `KnownFields`; secretos por `ERP_AGENT_API_KEY` y `ERP_AGENT_SAINT_DSN`). **Un servicio de Windows no tiene stderr:** 8.1 necesita enviar el log a un archivo (hoy no hay `log.file`) y manejar las señales del Service Control Manager (paquete `golang.org/x/sys/windows/svc`, ya es dependencia transitoria; verificar con `go list -m all` y el criterio de dependencias solo-ESM no aplica a Go). El heartbeat ya informa `last_error` a la API (por ejemplo, el login inseguro).
+- **Agente** (`packages/erp-agent`, módulo Go, `CGO_ENABLED=0`): `cmd/erp-agent` (flags `-config`, `-once`, `-reconcile`), `internal/agent` (`Run(ctx, cfg, log, opts)` ya hace apagado limpio al cancelar el contexto; `NewLogger` escribe a **stderr**), `internal/config` (YAML estricto con `KnownFields`; secretos por `ERP_AGENT_API_KEY` y `ERP_AGENT_SAINT_DSN`). Desde 8.1 el agente también corre como servicio de Windows (`internal/winsvc`, `log.file` con rotación). El heartbeat ya informa `last_error` a la API (por ejemplo, el login inseguro).
 - **Panel:** `/admin` ya muestra «Agente local: Conectado / Sin conexión desde hace N» (`agentStatus`, ventana `AGENT_ONLINE_WINDOW_MS`, `lib/admin.ts`), versión del agente y la última sincronización; se relee cada 30 s. **8.2** («alertas de agente sin conexión») es una alerta visible y accionable sobre eso (banner/aviso, quizá correo), no desde cero.
 - **README:** existe el del agente (`packages/erp-agent/README.md`) y `docs/saint-sandbox.md`, `docs/supabase-local.md`; no hay README raíz final (8.3). Capturas: Playwright puede generarlas.
 - **Scripts:** `scripts/saint-sandbox.sh|.ps1`, `scripts/validate-workflow.sh`; el comando único `demo` (8.6) no existe. Hoy levantar todo exige: `pnpm db:start`, `bash scripts/saint-sandbox.sh up`, `pnpm build`, API en 3001, web en 3100 (ver «Cómo levantar el proyecto»).
 
-**Dudas reales para la tanda del inicio (requieren al usuario):**
-1. **8.4 Despliegue:** ¿dónde (web y API) y con qué cuenta? Supabase en la nube necesita un proyecto y credenciales que no están en la máquina; sin ellas 8.4 solo puede quedar como guía y configuración reproducible (Dockerfile/compose/`vercel.json`...) probada en local. Proponer: dejar todo listo y probado en local con `docker compose` de producción + guía paso a paso, y **no** desplegar sin que el usuario dé el destino y las credenciales.
-2. **8.5 `LICENSE`:** tipo de licencia (propuesta: MIT, porque es un portafolio que también se quiere vender como servicio; si va a venderse el producto cerrado, mejor «todos los derechos reservados»). Y nombre del titular para la línea de copyright.
-3. **8.1:** probar instalar/arrancar/desinstalar un servicio exige **PowerShell como administrador**; si la sesión no lo es, hay que pedir al usuario que abra una elevada o aceptar el aviso UAC. Propuesta: intentar primero; si no hay privilegios, ejecutar esa única prueba con elevación pedida al usuario.
-4. **8.2:** ¿solo aviso en el panel o también correo/webhook? Propuesta: aviso en el panel (banner + contador en la cabecera) y un hook `notify` opcional en la API; sin servicio de correo externo.
-
-**Decisiones técnicas por defecto (no preguntar):** servicio con `golang.org/x/sys/windows/svc` y `svc/mgr` detrás de subcomandos `erp-agent service install|uninstall|start|stop` (etiqueta de compilación `windows`; en otros sistemas, mensaje claro); instalación con arranque automático, reinicio ante fallo y cuenta `LocalService` o una cuenta dedicada sin privilegios; log a archivo con rotación sencilla (`log.file`); la DSN y la clave del agente salen del archivo de configuración con permisos restringidos o de variables de entorno del servicio, **nunca** en la línea de comandos; la DSN usa `erp_agent` (verificación de aislamiento incluida).
+**Dudas de la fase:** todas resueltas (ver «Decisiones de la tanda» en «Posición»).
 
 **Comandos de la fase:** `pnpm db:start` (Supabase **completo**; si la pila corre con `-x`: `pnpm db:stop && pnpm db:start`), `bash scripts/saint-sandbox.sh up|reset`, `pnpm build`, `PORT=3001 node apps/api/dist/main.js`, `cd packages/erp-agent && go test ./...`, `pnpm test`, `pnpm test:db`, `pnpm e2e` (en `apps/web`), `pnpm lint`, `pnpm format:check`, `bash scripts/validate-workflow.sh`.
 
@@ -129,6 +130,9 @@ Ejecutar la tarea **8.1** del bloque `## Fase 8` de `docs/ROADMAP.md` (instalado
 - **Heredocs y plantillas en este shell:** un `node` con cadenas largas que mezclan comillas y comillas invertidas falla con `unexpected EOF` o rompe el script; escribir el script con la herramienta Write (en el scratchpad) y ejecutarlo. `cd` dentro de un comando cambia el directorio de trabajo de las llamadas siguientes: usar rutas absolutas o volver a la raíz.
 - **E2E que necesita el sandbox:** `orders-to-erp.spec.ts` requiere el contenedor `saint-sql` con el `init` aplicado (`bash scripts/saint-sandbox.sh up`, que crea `erp_agent`), Go instalado y Supabase **completo**. Un `next build` frío y la primera corrida completa pueden dar una carrera en `cart.spec.ts` (ya endurecido): repetir la suite antes de culpar al código.
 - **El agente con `sa` falla a propósito** al procesar pedidos (código de salida 1): usar el DSN de `erp_agent`.
+- **Pruebas que exigen administrador en Windows:** esta sesión no es elevada. Para correr algo elevado: `Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList ...` con la salida redirigida a un archivo (`*>&1 | Out-File -Encoding utf8 <archivo>`) y esperar con un `Monitor` que busque `EXIT=`; el usuario debe aceptar el UAC (si lo cancela, `Start-Process` falla con «El usuario ha cancelado la operación»: preguntar antes de repetirlo). En Windows PowerShell 5.1, con `$ErrorActionPreference='Stop'`, el stderr de un `.exe` con `2>&1` se vuelve excepción: usar `Continue`. `sc.exe` e `icacls` imprimen **traducido** (esta máquina está en español): comparar números y SID, no palabras.
+- **`python -` y `python3 -` se cuelgan en este shell** (otra vez): no usarlos ni para parchear archivos; usar Edit.
+- **La API para las pruebas de la fase** no queda corriendo sola: `PORT=3001 node apps/api/dist/main.js` en segundo plano (`curl localhost:3001/health`).
 
 ## Bloqueos y preguntas abiertas
 - Ninguno.

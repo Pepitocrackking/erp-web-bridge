@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -345,5 +346,75 @@ func TestConUnLoginInseguroNoSeConsultanNiSeEscribenPedidos(t *testing.T) {
 	}
 	if w.veces != veces {
 		t.Fatalf("verificó el login %d veces más: una vez aprobado no hay que repetirlo", w.veces-veces)
+	}
+}
+
+func TestOpenLogEscribeAArchivoYAConsola(t *testing.T) {
+	dir := t.TempDir()
+	var console bytes.Buffer
+	c := config.Log{Level: "info", Format: "json", File: filepath.Join(dir, "logs", "agent.log"), MaxSizeMB: 1, MaxBackups: 1}
+	w, closer, err := OpenLog(c, &console)
+	if err != nil {
+		t.Fatal(err)
+	}
+	NewLogger(w, c).Info("hola desde la prueba")
+	closer.Close()
+	b, err := os.ReadFile(c.File)
+	if err != nil || !strings.Contains(string(b), "hola desde la prueba") {
+		t.Fatalf("archivo = %q, err = %v", b, err)
+	}
+	if !strings.Contains(console.String(), "hola desde la prueba") {
+		t.Fatalf("consola = %q", console.String())
+	}
+}
+
+func TestOpenLogSinArchivoUsaSoloLaConsola(t *testing.T) {
+	var console bytes.Buffer
+	w, closer, err := OpenLog(config.Log{}, &console)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closer.Close()
+	w.Write([]byte("x"))
+	if console.String() != "x" {
+		t.Fatalf("consola = %q", console.String())
+	}
+}
+
+func TestOpenLogSinConsolaNiArchivoDescarta(t *testing.T) {
+	w, closer, err := OpenLog(config.Log{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closer.Close()
+	if n, err := w.Write([]byte("abc")); err != nil || n != 3 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+}
+
+func TestOpenLogFallaSiNoPuedeAbrirElArchivo(t *testing.T) {
+	if _, _, err := OpenLog(config.Log{File: t.TempDir(), MaxSizeMB: 1}, nil); err == nil {
+		t.Fatal("esperaba error")
+	}
+}
+
+func TestReadyAvisaCuandoElAgenteYaEstaArmado(t *testing.T) {
+	c := newCloud(t)
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	calls := 0
+	err := Run(context.Background(), cfg, NewLogger(discard(), cfg.Log), Options{Once: true, Ready: func() { calls++ }})
+	if err != nil || calls != 1 {
+		t.Fatalf("err = %v, Ready llamado %d veces, quería 1", err, calls)
+	}
+}
+
+func TestReadyNoSeLlamaSiElAgenteNoPuedeArmarse(t *testing.T) {
+	c := newCloud(t)
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	cfg.ERP.Type = "inexistente"
+	calls := 0
+	err := Run(context.Background(), cfg, NewLogger(discard(), cfg.Log), Options{Once: true, Ready: func() { calls++ }})
+	if err == nil || calls != 0 {
+		t.Fatalf("err = %v, Ready llamado %d veces, quería error y 0 llamadas", err, calls)
 	}
 }
