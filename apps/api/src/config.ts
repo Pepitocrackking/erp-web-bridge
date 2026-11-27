@@ -21,6 +21,20 @@ export interface NotifyConfig {
   checkIntervalSeconds: number;
 }
 
+/** Fuentes de la tasa oficial (BCV) y límites de la lectura automática. */
+export interface BcvConfig {
+  /** BCV_URL: portada de bcv.org.ve (fuente primaria). */
+  primaryUrl: string;
+  /** BCV_FALLBACK_URL: API pública de respaldo (formato DolarAPI). Vacío = sin respaldo. */
+  fallbackUrl: string | null;
+  /** BCV_TIMEOUT_MS: espera máxima por fuente. */
+  timeoutMs: number;
+  /** BCV_MAX_JUMP_PERCENT: variación máxima aceptada frente a la tasa anterior. */
+  maxJumpPercent: number;
+  /** BCV_CHECK_INTERVAL_SECONDS: cada cuánto revisa la API qué organizaciones deben actualizar. */
+  checkIntervalSeconds: number;
+}
+
 export interface AppConfig {
   databaseUrl: string;
   /** Secreto HS256 con el que Supabase Auth firma los JWT (SUPABASE_JWT_SECRET). */
@@ -41,6 +55,7 @@ export interface AppConfig {
   /** Publica /docs y /openapi.json (DOCS_ENABLED, por defecto sí). */
   docsEnabled: boolean;
   notify: NotifyConfig;
+  bcv: BcvConfig;
 }
 
 /** Entero positivo de una variable de entorno; cualquier otra cosa cae al valor por defecto. */
@@ -76,6 +91,25 @@ function parseWebhookUrl(raw: string | undefined): string | null {
   throw new Error("NOTIFY_WEBHOOK_URL debe ser https (http solo se admite hacia localhost)");
 }
 
+/** URL de una fuente de tasa: https, o http hacia localhost (pruebas). Una mal escrita detiene el arranque. */
+function parseSourceUrl(
+  name: string,
+  raw: string | undefined,
+  fallback: string | null,
+): string | null {
+  const value = raw === undefined ? fallback : raw.trim() || null;
+  if (value === null) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} no es una URL válida: ${JSON.stringify(value)}`);
+  }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.protocol === "https:" || (url.protocol === "http:" && loopback)) return value;
+  throw new Error(`${name} debe ser https (http solo se admite hacia localhost)`);
+}
+
 /** Valores por defecto: la base y el secreto de la pila local de `supabase start`. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
@@ -96,6 +130,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       webhookSecret: env.NOTIFY_WEBHOOK_SECRET?.trim() || null,
       offlineAfterSeconds: positiveInt(env.NOTIFY_OFFLINE_AFTER_SECONDS, 180),
       checkIntervalSeconds: positiveInt(env.NOTIFY_CHECK_INTERVAL_SECONDS, 60),
+    },
+    bcv: {
+      primaryUrl: parseSourceUrl("BCV_URL", env.BCV_URL, "https://www.bcv.org.ve/") as string,
+      fallbackUrl: parseSourceUrl(
+        "BCV_FALLBACK_URL",
+        env.BCV_FALLBACK_URL,
+        "https://ve.dolarapi.com/v1/dolares/oficial",
+      ),
+      timeoutMs: positiveInt(env.BCV_TIMEOUT_MS, 10_000),
+      maxJumpPercent: positiveInt(env.BCV_MAX_JUMP_PERCENT, 25),
+      checkIntervalSeconds: positiveInt(env.BCV_CHECK_INTERVAL_SECONDS, 60),
     },
   };
 }
