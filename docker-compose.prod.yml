@@ -1,0 +1,66 @@
+# Producción: la API y la web en contenedores. Supabase (base de datos, Auth y Realtime) es EXTERNO:
+# un proyecto en la nube, o la pila local para probar. Los secretos se leen de un archivo que NO se
+# versiona; la plantilla es .env.production.example y la guía paso a paso, docs/deploy.md.
+#
+#   cp .env.production.example .env.production        # y completar
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Cada servicio recibe SOLO las variables que usa: la web nunca ve DATABASE_URL ni el secreto JWT.
+name: erp-web-bridge-prod
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: erp-web-bridge-api:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    ports:
+      - "${API_HOST_PORT:-3001}:3001"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Falta DATABASE_URL (cadena de conexión de Postgres)}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:?Falta SUPABASE_JWKS_URL}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:?Falta SUPABASE_JWT_SECRET}
+      SUPABASE_JWT_ISSUER: ${SUPABASE_JWT_ISSUER:-}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      DOCS_ENABLED: ${DOCS_ENABLED:-true}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-120}
+      RATE_LIMIT_SYNC: ${RATE_LIMIT_SYNC:-60}
+      RATE_LIMIT_STRICT: ${RATE_LIMIT_STRICT:-20}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+      NOTIFY_WEBHOOK_SECRET: ${NOTIFY_WEBHOOK_SECRET:-}
+      NOTIFY_OFFLINE_AFTER_SECONDS: ${NOTIFY_OFFLINE_AFTER_SECONDS:-180}
+      NOTIFY_CHECK_INTERVAL_SECONDS: ${NOTIFY_CHECK_INTERVAL_SECONDS:-60}
+    # Contenedor de solo lectura: la API no escribe en disco.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      # Se incrustan al compilar (por eso hay una imagen por entorno).
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Falta NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Falta NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    image: erp-web-bridge-web:${IMAGE_TAG:-local}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_HOST_PORT:-3100}:3100"
+    environment:
+      # La web habla con la API por la red interna del compose (acciones de servidor: sin CORS).
+      API_URL: http://api:3001
+      # NUNCA true en producción real: habilita el acceso demo y el simulador con claves de desarrollo.
+      DEMO_MODE: ${DEMO_MODE:-false}
+      SIMULATOR_API_KEY: ${SIMULATOR_API_KEY:-}
+      SIMULATOR_ORG_SLUG: ${SIMULATOR_ORG_SLUG:-}
+    # Next escribe su caché de imágenes y de datos en .next/cache.
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]

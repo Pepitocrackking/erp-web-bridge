@@ -121,3 +121,45 @@ $ (enlaces e imágenes locales del README)  → todos existen
 ```
 
 Las cifras de la tabla de calidad (102 / 205 / 87 / 48 / 50) son las de las corridas de la 8.2. El arranque del README usa los pasos manuales; la 8.6 los reemplaza por el comando único `demo`.
+
+## 8.4 Despliegue de web y API, con Supabase en la nube
+
+**Alcance (decidido al inicio de la fase):** listo y probado en local; **no se desplegó nada en ninguna nube** porque no hay proyecto de Supabase ni destino con credenciales. Lo que sí se entrega es reproducible y verificado con contenedores reales.
+
+**Qué se hizo**
+
+- `apps/api/Dockerfile` y `apps/web/Dockerfile` (multi-etapa, contexto = raíz del repo, `pnpm install --frozen-lockfile`, `pnpm deploy --prod` para la API y Next `standalone` para la web, usuario `node`, `HEALTHCHECK`). `NEXT_OUTPUT=standalone` solo lo define el build de Docker: `next.config.mjs` no cambia el desarrollo, las E2E ni `next start`.
+- `docker-compose.prod.yml`: API + web, Supabase externo; cada servicio recibe **solo** las variables que usa (la web nunca ve `DATABASE_URL` ni el secreto JWT); `cap_drop: ALL`, `no-new-privileges`, API con sistema de archivos de solo lectura; la web llega a la API por la red interna (`http://api:3001`, sin CORS); variables obligatorias con mensaje claro (`${VAR:?}`).
+- `.env.production.example` (plantilla; `.gitignore` ahora deja versionar solo ese ejemplo), `.dockerignore` (sin secretos, `.env*`, pruebas, docs ni el agente en la imagen).
+- `docs/deploy.md`: proyecto de Supabase (`supabase link` + `db push` **sin seed**), Auth, tabla de qué dato va a qué variable, levantar el compose, crear el primer cliente (organización con la clave guardada solo como hash SHA-256, usuario dueño), lista de comprobación posterior y los puntos que no se pudieron probar contra la nube (⚠ certificado SSL del pooler).
+- `playwright.config.ts`: opción `E2E_HOST_RESOLVER_RULES` (solo por variable de entorno) para que el navegador del anfitrión resuelva `host.docker.internal` al probar las imágenes.
+
+**Verificación con contenedores reales contra la pila local de Supabase**
+
+```
+$ docker compose -f docker-compose.prod.yml --env-file prod-test.env build      → api y web: Built
+$ docker compose ... up -d ; ps
+api  erp-web-bridge-api:test  Up 14 seconds (healthy)   0.0.0.0:3001->3001/tcp
+web  erp-web-bridge-web:test  Up 8 seconds (healthy)    0.0.0.0:3100->3100/tcp
+imágenes: api 396 MB, web 395 MB
+$ curl localhost:3001/health                      {"status":"ok"}
+$ curl -o /dev/null -w %{http_code} localhost:3001/docs      404   (DOCS_ENABLED=false)
+$ docker exec ...-api-1 id / ...-web-1 id          uid=1000(node) gid=1000(node)
+$ docker exec ...-api-1 touch /app/x               Read-only file system
+$ env de la web: DEMO_MODE=false, API_URL=http://api:3001   (sin DATABASE_URL ni SUPABASE_JWT_SECRET)
+$ curl localhost:3100/login | grep -c "Administrador Demo"    0   (sin modo demo)
+$ docker compose -f docker-compose.prod.yml config    (sin variables)
+error ... required variable DATABASE_URL is missing a value: Falta DATABASE_URL (cadena de conexión de Postgres)
+```
+
+**Suite E2E completa de Playwright contra la API y la web DENTRO de los contenedores** (los puertos 3001 y 3100 los escuchaba `com.docker.backend.exe`, no node; web con `DEMO_MODE=true` solo para esta corrida, porque las E2E usan el acceso demo y el simulador):
+
+```
+$ E2E_HOST_RESOLVER_RULES="MAP host.docker.internal 127.0.0.1" pnpm exec playwright test
+  6 skipped        (las capturas del README, que solo corren con SCREENSHOTS=1)
+  50 passed (2.7m)
+```
+
+Incluye acceso y aprobación, catálogo, carrito y crédito, panel **en vivo** (Realtime), alertas de agente, simulador, PWA y el Gate 7 (el agente Go real contra el sandbox de Saint, hablando con la API del contenedor).
+
+**Una primera corrida dio 14 fallos, y no eran de las imágenes:** el panel se quedaba en «Conectando…» porque el navegador del anfitrión no resuelve `host.docker.internal` (`curl` da error 6; el websocket a `127.0.0.1` sí abre) y la web del contenedor había sido compilada con esa URL de Supabase. En un despliegue real la URL de Supabase es pública y sirve para ambos lados. Con la opción de Playwright anterior pasan los 50.

@@ -115,7 +115,7 @@ CGO_ENABLED=0 go build -o erp-agent.exe ./cmd/erp-agent
 ./erp-agent.exe -config agent.yaml                     # o como servicio: erp-agent service install -config agent.yaml
 ```
 
-`DEMO_MODE=true` habilita el botón de acceso demo y el simulador: **no lo actives en producción real**. Más detalle en [docs/supabase-local.md](docs/supabase-local.md), [docs/saint-sandbox.md](docs/saint-sandbox.md) y [packages/erp-agent/README.md](packages/erp-agent/README.md).
+`DEMO_MODE=true` habilita el botón de acceso demo y el simulador: **no lo actives en producción real**. Para llevarlo a producción (imágenes Docker de la API y la web, Supabase en la nube) sigue [docs/deploy.md](docs/deploy.md). Más detalle en [docs/supabase-local.md](docs/supabase-local.md), [docs/saint-sandbox.md](docs/saint-sandbox.md) y [packages/erp-agent/README.md](packages/erp-agent/README.md).
 
 ## Calidad
 
