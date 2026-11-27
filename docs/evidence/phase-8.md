@@ -100,3 +100,24 @@ $ curl -X POST /v1/agent/heartbeat -H "x-api-key: ..."          (el agente vuelv
 ```
 
 (La primera línea recibida fue de `demo-mock`, que tenía un latido viejo de la prueba del servicio: comportamiento correcto. Después se limpió el estado de prueba.)
+
+## 8.3 README final con diagrama de arquitectura, capturas y guion de demo
+
+**Qué se hizo**
+
+- `README.md` reescrito: qué es y para quién, **diagrama de arquitectura** y **diagrama de secuencia del pedido** (Mermaid), decisiones de diseño, qué incluye cada pieza, **guion de demo de 5 minutos** (siete pasos con los textos reales de la interfaz), cómo probarlo en local, tabla de calidad, estructura del repo y backlog v1.
+- **6 capturas** reales en `docs/screenshots/` (login demo, catálogo del comprador en USD y Bs, carrito con crédito, panel con el agente «Conectado», simulador de ERP y la alerta de agente sin conexión), generadas con Playwright por `apps/web/e2e/screenshots.spec.ts` (solo corre con `SCREENSHOTS=1`; no forma parte de la suite normal). Tras `pnpm db:reset`, para que no salgan datos de otras pruebas; las imágenes `example.com` del seed se sustituyen por un marcador neutro; el latido y la alerta se simulan con datos reales y se restauran al terminar.
+
+**Comprobaciones**
+
+```
+$ SCREENSHOTS=1 pnpm exec playwright test e2e/screenshots.spec.ts
+  6 passed (29.2s)
+$ node check-mermaid.cjs README.md        (Mermaid 11 real en Chromium)
+bloques mermaid encontrados: 2
+bloque 1: {"ok":true,"size":108354}
+bloque 2: {"ok":true,"size":29327}
+$ (enlaces e imágenes locales del README)  → todos existen
+```
+
+Las cifras de la tabla de calidad (102 / 205 / 87 / 48 / 50) son las de las corridas de la 8.2. El arranque del README usa los pasos manuales; la 8.6 los reemplaza por el comando único `demo`.
