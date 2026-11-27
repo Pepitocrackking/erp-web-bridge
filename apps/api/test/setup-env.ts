@@ -4,3 +4,4 @@
 process.env.RATE_LIMIT_DEFAULT = "1000000";
 process.env.RATE_LIMIT_SYNC = "1000000";
 process.env.RATE_LIMIT_STRICT = "1000000";
+process.env.BCV_SCHEDULER = "false"; // las pruebas no consultan fuentes externas ni dejan temporizadores

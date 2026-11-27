@@ -83,6 +83,9 @@ describe("documentación OpenAPI", () => {
         "GET /v1/orgs/{orgId}/exchange-rate",
         "POST /v1/orgs/{orgId}/exchange-rate",
         "GET /v1/orgs/{orgId}/exchange-rate/history",
+        "GET /v1/orgs/{orgId}/exchange-rate/auto",
+        "PUT /v1/orgs/{orgId}/exchange-rate/auto",
+        "POST /v1/orgs/{orgId}/exchange-rate/auto/refresh",
         "POST /v1/orgs/{orgId}/orders",
         "GET /v1/orders/pending",
         "POST /v1/orders/{orderId}/confirm",
@@ -116,6 +119,8 @@ describe("documentación OpenAPI", () => {
     const user = [
       "/v1/orgs/{orgId}/exchange-rate",
       "/v1/orgs/{orgId}/exchange-rate/history",
+      "/v1/orgs/{orgId}/exchange-rate/auto",
+      "/v1/orgs/{orgId}/exchange-rate/auto/refresh",
       "/v1/orgs/{orgId}/orders",
       "/v1/orgs/{orgId}/orders/{orderId}/retry",
     ];

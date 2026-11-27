@@ -1,7 +1,14 @@
 "use server";
 
 import { formatBs } from "@erp-web-bridge/shared-types";
-import { isOrderId, parseRateInput, retryOutcome } from "../../lib/admin";
+import {
+  isOrderId,
+  parseRateAutoForm,
+  parseRateInput,
+  refreshRateAutoOutcome,
+  retryOutcome,
+  saveRateAutoOutcome,
+} from "../../lib/admin";
 import { apiUrl } from "../../lib/api-url";
 import { fetchMembership } from "../../lib/catalog";
 import type { FormState } from "../../lib/form-state";
@@ -87,6 +94,66 @@ export async function retryOrder(_prev: FormState, formData: FormData): Promise<
       changed?: boolean;
     } | null;
     return retryOutcome(response.status, body);
+  } catch {
+    return { error: "No se pudo contactar al servidor. Inténtalo de nuevo." };
+  }
+}
+
+/** Sesión y membresía de un administrador, o el mensaje de error para el formulario. */
+async function adminSession(): Promise<{ orgId: string; token: string } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Tu sesión expiró. Entra de nuevo." };
+  const membership = await fetchMembership(supabase, user.id);
+  if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+    return { error: "Solo un administrador puede configurar la tasa." };
+  }
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return { error: "Tu sesión expiró. Entra de nuevo." };
+  return { orgId: membership.orgId, token: session.access_token };
+}
+
+/** Activa o desactiva la tasa automática (BCV) y fija su intervalo, por la API. */
+export async function saveRateAuto(_prev: FormState, formData: FormData): Promise<FormState> {
+  const body = parseRateAutoForm(formData);
+  if (!body) return { error: "Elige un intervalo válido." };
+  const s = await adminSession();
+  if ("error" in s) return { error: s.error };
+  try {
+    const response = await fetch(`${apiUrl()}/v1/orgs/${s.orgId}/exchange-rate/auto`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", authorization: `Bearer ${s.token}` },
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+    return saveRateAutoOutcome(response.status, body.enabled);
+  } catch {
+    return { error: "No se pudo contactar al servidor. Inténtalo de nuevo." };
+  }
+}
+
+/** «Actualizar ahora»: pide a la API leer el BCV en este momento. */
+export async function refreshRateAuto(_prev: FormState, formData: FormData): Promise<FormState> {
+  const s = await adminSession();
+  if ("error" in s) return { error: s.error };
+  try {
+    const response = await fetch(`${apiUrl()}/v1/orgs/${s.orgId}/exchange-rate/auto/refresh`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${s.token}` },
+      body: JSON.stringify({ force: formData.get("force") === "on" }),
+      cache: "no-store",
+      // La API consulta fuentes externas (hasta 10 s cada una).
+      signal: AbortSignal.timeout(40_000),
+    });
+    const body = (await response.json().catch(() => null)) as Parameters<
+      typeof refreshRateAutoOutcome
+    >[1];
+    return refreshRateAutoOutcome(response.status, body);
   } catch {
     return { error: "No se pudo contactar al servidor. Inténtalo de nuevo." };
   }

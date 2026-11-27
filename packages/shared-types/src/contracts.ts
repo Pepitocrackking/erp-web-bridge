@@ -296,3 +296,46 @@ export const retryOrderResultSchema = z.strictObject({
   changed: z.boolean(),
 });
 export type RetryOrderResult = z.infer<typeof retryOrderResultSchema>;
+
+/** Estado de la última revisión de la tasa automática (columna organizations.rate_auto_status). */
+export const rateAutoStatusSchema = z.enum([
+  "ok",
+  "unchanged",
+  "manual_priority",
+  "source_failed",
+  "jump_rejected",
+]);
+export type RateAutoStatus = z.infer<typeof rateAutoStatusSchema>;
+
+/** Intervalo permitido entre revisiones de la tasa automática, en minutos. */
+export const RATE_AUTO_MIN_INTERVAL = 15;
+export const RATE_AUTO_MAX_INTERVAL = 1440;
+
+/** Cuerpo de PUT /v1/orgs/:orgId/exchange-rate/auto. */
+export const rateAutoSettingsInputSchema = z.strictObject({
+  enabled: z.boolean(),
+  interval_minutes: z.number().int().min(RATE_AUTO_MIN_INTERVAL).max(RATE_AUTO_MAX_INTERVAL),
+  respect_manual: z.boolean(),
+});
+export type RateAutoSettingsInput = z.infer<typeof rateAutoSettingsInputSchema>;
+
+/** Configuración y resultado de la última revisión de la tasa automática. */
+export const rateAutoSettingsSchema = z.strictObject({
+  org_id: z.uuid(),
+  enabled: z.boolean(),
+  interval_minutes: z.number().int().positive(),
+  respect_manual: z.boolean(),
+  checked_at: z.iso.datetime().nullable(),
+  ok_at: z.iso.datetime().nullable(),
+  status: rateAutoStatusSchema.nullable(),
+  detail: z.string().nullable(),
+  provider: z.string().nullable(),
+});
+export type RateAutoSettings = z.infer<typeof rateAutoSettingsSchema>;
+
+/** Cuerpo de POST /v1/orgs/:orgId/exchange-rate/auto/refresh. */
+export const rateAutoRefreshInputSchema = z.strictObject({
+  /** Aceptar la lectura aunque varíe más que el umbral (el administrador la vio y la da por buena). */
+  force: z.boolean().default(false),
+});
+export type RateAutoRefreshInput = z.infer<typeof rateAutoRefreshInputSchema>;

@@ -14,3 +14,4 @@ scripts
 packages/erp-agent
 docker-compose.yml
 supabase
+apps/api/test/fixtures

@@ -3,10 +3,16 @@
 Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo lee `retomar`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
 
 ## Posición
-- **Fase actual:** ninguna. **El proyecto está completo**: las 9 fases (0 a 8) están cerradas y fusionadas.
-- **Rama:** `main`.
-- **Última tarea completada:** Fase 8 (endurecimiento y portafolio), con el Gate 8 en verde. Evidencia en `docs/evidence/phase-8.md`.
-- **Estado:** sin trabajo pendiente del ROADMAP. Lo que sigue está en el backlog v1 (ver «Siguiente acción»).
+- **Fase actual:** Fase 9 cerrada (Gate 9 en verde, PR de `phase-9/bcv-rate`). Siguiente: **Fase 10: Precios escalonados y listas de precios** (rama `phase-10/tiered-pricing`). El usuario pidió hacer **todo el backlog v1** (fases 9 a 15 del ROADMAP).
+- **Última tarea completada:** 9.4; Gate 9 completo. Evidencia en `docs/evidence/phase-9.md`.
+- **Estado:** pendiente de empezar la Fase 10.
+
+## Decisiones de la v1 (2026-11-27, ya resueltas, no volver a preguntar)
+- **Orden:** 9 tasa BCV, 10 precios escalonados, 11 autoactualización del agente, 12 OdooAdapter, 13 ChrystalAdapter, 14 WhatsApp, 15 validación de Saint (de menor a mayor riesgo).
+- **BCV:** bcv.org.ve como fuente primaria, API pública de respaldo como secundaria y la tasa manual como último recurso; alerta si la fuente cambia.
+- **Chrystal:** adaptador sobre un sandbox supuesto (motor SQL genérico), con mapeo configurable y marcado **no validado** contra Chrystal real.
+- **WhatsApp:** WhatsApp Cloud API de Meta detrás de una interfaz `Notifier`, probado contra un simulador local. No se envían mensajes reales sin credenciales del usuario.
+- **Validación de Saint:** sin base real no se puede validar; la fase 15 entrega la herramienta de descubrimiento de esquema y la guía de piloto, y lo documenta como pendiente.
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -62,6 +68,13 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - **8.4 hecho así:** `apps/api/Dockerfile`, `apps/web/Dockerfile`, `docker-compose.prod.yml`, `.env.production.example`, `.dockerignore`, `docs/deploy.md`; `next.config.mjs` activa `standalone` solo con `NEXT_OUTPUT=standalone` (build de Docker). Probado con contenedores reales: healthy, usuario `node`, API de solo lectura, **50 E2E contra los contenedores**. **No se desplegó en la nube** (sin proyecto ni credenciales); ⚠ pendiente de comprobar con una nube real: el certificado SSL del pooler de Supabase (`NODE_EXTRA_CA_CERTS`). Para probar las imágenes en local: env con `host.docker.internal` para Supabase y `E2E_HOST_RESOLVER_RULES="MAP host.docker.internal 127.0.0.1"` al correr Playwright (el navegador del anfitrión no lo resuelve).
   - **8.3 hecho así:** `README.md` final (2 diagramas Mermaid validados con Mermaid real, guion de demo de 7 pasos) y 6 capturas en `docs/screenshots/` generadas por `apps/web/e2e/screenshots.spec.ts` (`SCREENSHOTS=1 pnpm exec playwright test e2e/screenshots.spec.ts` en `apps/web`, tras `pnpm db:reset` y con la API en 3001 o dejando que Playwright la levante).
   - **8.2 hecho así:** panel (`panelAlerts`/`alertSummary` en `lib/admin.ts`; banner `data-testid="panel-alert"`, contador `alert-counter`, título `(N) Panel…`; la cabecera del panel ahora vive en `dashboard.tsx`) y webhook opcional (`apps/api/src/agent/agent-alerts.service.ts`, `NOTIFY_*`, migración `..1000` con `organizations.agent_offline_notified_at`). Doc en `docs/agent-alerts.md`. Pruebas: web 87, API 205, RLS 48, Playwright **50** (`e2e/agent-alerts.spec.ts`, 3 nuevas; `e2e/helpers.ts` tiene ahora `psql()`).
+
+- **Fase 9** (PR de `phase-9/bcv-rate`, 2026-11-27): tasa BCV automática. Evidencia en `docs/evidence/phase-9.md`; guía en `docs/bcv-rate.md`.
+  - **API:** `apps/api/src/exchange-rate/` (`rate-sources.ts`, `rate-lookup.ts`, `rate-auto.service.ts`, `bcv-ca.ts`); endpoints `GET|PUT /v1/orgs/:orgId/exchange-rate/auto` y `POST .../auto/refresh`; config `BCV_*` (`BCV_SCHEDULER=false` en las pruebas). `DatabaseService.withTransaction` nuevo (transacción interna sin usuario).
+  - **BD:** migración `20261127000100_rate_auto.sql` (columnas `organizations.rate_auto_*`, función `set_rate_auto_settings`). Intervalo por organización en minutos (15 a 1440), no «hora fija». La tasa manual de HOY (hora de Caracas) gana si `rate_auto_respect_manual`.
+  - **bcv.org.ve manda un intermedio TLS equivocado:** Node no verifica sin ayuda. Se añade el intermedio Sectigo OV R36 solo a esa conexión (`bcv-ca.ts`, vence 2036-03-21); la verificación TLS nunca se desactiva. Lectura real el 2026-11-27: 926,3592 (igual que DolarAPI).
+  - **Web:** `rate-auto-panel.tsx`, acciones `saveRateAuto`/`refreshRateAuto`, alertas `rate-auto-failed` y `rate-auto-jump`. E2E con simulador `apps/web/e2e/bcv-sim.mjs` (puerto 3999, lo levanta Playwright; **si ya hay una API corriendo en 3001 no usa el simulador: pararla**).
+  - **Cifras:** shared-types 111, web 98, API 281, RLS 57, Playwright 63 (+6 saltadas).
 
 ## Siguiente acción
 No queda nada del ROADMAP: el proyecto está completo. Si el usuario quiere seguir, lo natural es el **backlog v1** (`docs/ROADMAP.md`): `OdooAdapter`, scraper de la tasa BCV con respaldo manual, precios escalonados, notificaciones por WhatsApp, `ChrystalAdapter`, actualización automática del agente y, sobre todo, **validar el `SaintAdapter` contra una base real de un cliente piloto** (los nombres de columnas son de mejor esfuerzo). Cada fase nueva sigue el mismo flujo: rama `phase-N/<slug>`, una sola tanda de dudas al inicio, `next-task` por tarea y `phase-gate` al cerrar.
@@ -148,4 +161,4 @@ No queda nada del ROADMAP: el proyecto está completo. Si el usuario quiere segu
 - Validar el flujo de trabajo: `bash scripts/validate-workflow.sh`.
 
 ## Última actualización
-2026-11-27. Fase 8 cerrada y fusionada (PR #9): el proyecto está completo.
+2026-11-27. Fase 9 cerrada (tasa BCV automática). Siguiente: Fase 10.

@@ -102,3 +102,27 @@ describe("loadConfig: aviso de agente sin conexión (NOTIFY_*)", () => {
     expect(c.notify.checkIntervalSeconds).toBe(60);
   });
 });
+
+describe("loadConfig: fuentes de la tasa BCV", () => {
+  it("por defecto usa bcv.org.ve y la API pública de respaldo", () => {
+    const { bcv } = loadConfig({});
+    expect(bcv).toEqual({
+      primaryUrl: "https://www.bcv.org.ve/",
+      fallbackUrl: "https://ve.dolarapi.com/v1/dolares/oficial",
+      timeoutMs: 10_000,
+      maxJumpPercent: 25,
+      checkIntervalSeconds: 60,
+      schedulerEnabled: true,
+    });
+  });
+  it("BCV_FALLBACK_URL vacía apaga el respaldo", () => {
+    expect(loadConfig({ BCV_FALLBACK_URL: "" }).bcv.fallbackUrl).toBeNull();
+  });
+  it("acepta http solo hacia localhost y rechaza el resto", () => {
+    expect(loadConfig({ BCV_URL: "http://127.0.0.1:9999/" }).bcv.primaryUrl).toBe(
+      "http://127.0.0.1:9999/",
+    );
+    expect(() => loadConfig({ BCV_URL: "http://bcv.org.ve/" })).toThrow(/https/);
+    expect(() => loadConfig({ BCV_URL: "no es url" })).toThrow(/URL válida/);
+  });
+});

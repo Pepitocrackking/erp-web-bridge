@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
   UseGuards,
 } from "@nestjs/common";
@@ -17,17 +18,24 @@ import {
   exchangeRateHistoryQuerySchema,
   exchangeRateHistorySchema,
   exchangeRateInputSchema,
+  rateAutoRefreshInputSchema,
+  rateAutoSettingsInputSchema,
+  rateAutoSettingsSchema,
   type CurrentExchangeRate,
   type ExchangeRateEntry,
   type ExchangeRateHistory,
   type ExchangeRateHistoryQuery,
   type ExchangeRateInput,
+  type RateAutoRefreshInput,
+  type RateAutoSettings,
+  type RateAutoSettingsInput,
 } from "@erp-web-bridge/shared-types";
 import { CurrentUser, JwtGuard, type UserContext } from "../auth/auth.guards";
 import { ApiEndpoint } from "../common/openapi";
 import { RateLimit } from "../common/rate-limit";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { DatabaseService } from "../database/database.module";
+import { RateAutoService } from "./rate-auto.service";
 
 interface EntryRow {
   id: string;
@@ -54,7 +62,10 @@ const ENTRY_COLUMNS = "id, org_id, rate_bs::float AS rate_bs, source, set_by, cr
 @Controller("v1/orgs/:orgId/exchange-rate")
 @UseGuards(JwtGuard)
 export class ExchangeRateController {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly auto: RateAutoService,
+  ) {}
 
   /** Fija la tasa. La fuente siempre es `manual` y `set_by` el usuario del token. */
   @Post()
@@ -181,6 +192,146 @@ export class ExchangeRateController {
       throw new NotFoundException("Organización no encontrada");
     }
     return { items: items.map(toEntry), total, limit: query.limit, offset: query.offset };
+  }
+
+  /** Configuración y estado de la tasa automática. La leen todos los miembros. */
+  @Get("auto")
+  @ApiEndpoint({
+    tag: "exchange-rate",
+    summary: "Configuración y estado de la tasa automática (BCV)",
+    description: "La lee cualquier miembro. Un no miembro recibe 404.",
+    auth: "user",
+    response: {
+      status: 200,
+      description: "Configuración y última revisión",
+      schema: rateAutoSettingsSchema,
+    },
+    errors: [400, 404],
+  })
+  async autoSettings(
+    @Param("orgId", new ParseUUIDPipe()) orgId: string,
+    @CurrentUser() user: UserContext,
+  ): Promise<RateAutoSettings> {
+    const row = await this.readAuto(user.userId, orgId);
+    if (!row) throw new NotFoundException("Organización no encontrada");
+    return row;
+  }
+
+  /** Activa o desactiva la tasa automática y fija su intervalo. Solo owner y admin. */
+  @Put("auto")
+  @RateLimit("strict")
+  @ApiEndpoint({
+    tag: "exchange-rate",
+    summary: "Configurar la tasa automática (BCV)",
+    description:
+      "Activa o desactiva la lectura automática de la tasa oficial, su intervalo (15 a 1440 minutos) " +
+      "y si una tasa manual de hoy tiene prioridad. Solo owner y admin.",
+    auth: "user",
+    body: rateAutoSettingsInputSchema,
+    response: {
+      status: 200,
+      description: "Configuración guardada",
+      schema: rateAutoSettingsSchema,
+    },
+    errors: [400, 403],
+  })
+  async setAutoSettings(
+    @Param("orgId", new ParseUUIDPipe()) orgId: string,
+    @CurrentUser() user: UserContext,
+    @Body(new ZodValidationPipe(rateAutoSettingsInputSchema)) body: RateAutoSettingsInput,
+  ): Promise<RateAutoSettings> {
+    try {
+      await this.db.withUser(user.userId, (client) =>
+        client.query("SELECT public.set_rate_auto_settings($1, $2, $3, $4)", [
+          orgId,
+          body.enabled,
+          body.interval_minutes,
+          body.respect_manual,
+        ]),
+      );
+    } catch (err) {
+      if ((err as { code?: string }).code === "42501") {
+        throw new ForbiddenException("Solo un administrador de la organización puede configurarla");
+      }
+      throw err;
+    }
+    const row = await this.readAuto(user.userId, orgId);
+    if (!row) throw new NotFoundException("Organización no encontrada");
+    return row;
+  }
+
+  /** «Actualizar ahora»: consulta las fuentes y aplica la tasa a esta organización. Solo owner y admin. */
+  @Post("auto/refresh")
+  @RateLimit("strict")
+  @ApiEndpoint({
+    tag: "exchange-rate",
+    summary: "Actualizar la tasa ahora desde el BCV",
+    description:
+      "Consulta las fuentes en este momento y aplica el resultado a la organización, aunque la tasa " +
+      "automática esté desactivada. Con force acepta una lectura que varíe más que el umbral y que " +
+      "pise una tasa manual de hoy. Solo owner y admin.",
+    auth: "user",
+    body: rateAutoRefreshInputSchema,
+    response: {
+      status: 200,
+      description: "Resultado de la revisión",
+      schema: rateAutoSettingsSchema,
+    },
+    errors: [400, 403],
+  })
+  async refresh(
+    @Param("orgId", new ParseUUIDPipe()) orgId: string,
+    @CurrentUser() user: UserContext,
+    @Body(new ZodValidationPipe(rateAutoRefreshInputSchema)) body: RateAutoRefreshInput,
+  ): Promise<RateAutoSettings> {
+    // Quién es administrador lo decide la base (private.is_org_admin), no la API.
+    const isAdmin = await this.db.withUser(user.userId, async (client) => {
+      const res = await client.query<{ ok: boolean }>("SELECT private.is_org_admin($1) AS ok", [
+        orgId,
+      ]);
+      return res.rows[0]?.ok === true;
+    });
+    if (!isAdmin) {
+      throw new ForbiddenException(
+        "Solo un administrador de la organización puede actualizar la tasa",
+      );
+    }
+    await this.auto.refreshOrg(orgId, { force: body.force });
+    const row = await this.readAuto(user.userId, orgId);
+    if (!row) throw new NotFoundException("Organización no encontrada");
+    return row;
+  }
+
+  private readAuto(userId: string, orgId: string): Promise<RateAutoSettings | null> {
+    return this.db.withUser(userId, async (client) => {
+      const res = await client.query<{
+        org_id: string;
+        enabled: boolean;
+        interval_minutes: number;
+        respect_manual: boolean;
+        checked_at: Date | null;
+        ok_at: Date | null;
+        status: RateAutoSettings["status"];
+        detail: string | null;
+        provider: string | null;
+      }>(
+        `SELECT id AS org_id, rate_auto_enabled AS enabled,
+                rate_auto_interval_minutes AS interval_minutes,
+                rate_auto_respect_manual AS respect_manual,
+                rate_auto_checked_at AS checked_at, rate_auto_ok_at AS ok_at,
+                rate_auto_status AS status, rate_auto_detail AS detail,
+                rate_auto_provider AS provider
+           FROM public.organizations WHERE id = $1`,
+        [orgId],
+      );
+      const r = res.rows[0];
+      if (!r) return null;
+      return {
+        ...r,
+        checked_at: r.checked_at ? r.checked_at.toISOString() : null,
+        ok_at: r.ok_at ? r.ok_at.toISOString() : null,
+      };
+    });
   }
 
   private isMember(userId: string, orgId: string): Promise<boolean> {
