@@ -112,6 +112,7 @@ describe("loadConfig: fuentes de la tasa BCV", () => {
       timeoutMs: 10_000,
       maxJumpPercent: 25,
       checkIntervalSeconds: 60,
+      schedulerEnabled: true,
     });
   });
   it("BCV_FALLBACK_URL vacía apaga el respaldo", () => {

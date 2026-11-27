@@ -33,6 +33,8 @@ export interface BcvConfig {
   maxJumpPercent: number;
   /** BCV_CHECK_INTERVAL_SECONDS: cada cuánto revisa la API qué organizaciones deben actualizar. */
   checkIntervalSeconds: number;
+  /** BCV_SCHEDULER=false apaga la revisión periódica (las pruebas); el botón «Actualizar ahora» sigue funcionando. */
+  schedulerEnabled: boolean;
 }
 
 export interface AppConfig {
@@ -141,6 +143,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       timeoutMs: positiveInt(env.BCV_TIMEOUT_MS, 10_000),
       maxJumpPercent: positiveInt(env.BCV_MAX_JUMP_PERCENT, 25),
       checkIntervalSeconds: positiveInt(env.BCV_CHECK_INTERVAL_SECONDS, 60),
+      schedulerEnabled: env.BCV_SCHEDULER?.trim().toLowerCase() !== "false",
     },
   };
 }

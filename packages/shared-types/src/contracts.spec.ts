@@ -15,6 +15,9 @@ import {
   heartbeatSchema,
   orderSchema,
   productSchema,
+  rateAutoRefreshInputSchema,
+  rateAutoSettingsInputSchema,
+  rateAutoStatusSchema,
   syncBatchSchema,
   syncResultSchema,
   SYNC_BATCH_MAX_RECORDS,
@@ -427,5 +430,46 @@ describe("fallo permanente de un pedido", () => {
     };
     expect(failOrderResultSchema.safeParse(ok).success).toBe(true);
     expect(failOrderResultSchema.safeParse({ ...ok, status: "otro" }).success).toBe(false);
+  });
+});
+
+describe("tasa automática (BCV)", () => {
+  const ok = { enabled: true, interval_minutes: 60, respect_manual: true };
+
+  it("acepta una configuración válida y los límites del intervalo", () => {
+    expect(rateAutoSettingsInputSchema.safeParse(ok).success).toBe(true);
+    expect(rateAutoSettingsInputSchema.safeParse({ ...ok, interval_minutes: 15 }).success).toBe(
+      true,
+    );
+    expect(rateAutoSettingsInputSchema.safeParse({ ...ok, interval_minutes: 1440 }).success).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    { ...ok, interval_minutes: 14 },
+    { ...ok, interval_minutes: 1441 },
+    { ...ok, interval_minutes: 30.5 },
+    { ...ok, enabled: "true" },
+    { enabled: true, interval_minutes: 60 },
+    { ...ok, extra: 1 },
+  ])("rechaza %j", (bad) => {
+    expect(rateAutoSettingsInputSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("force vale false por defecto y no admite otros campos", () => {
+    expect(rateAutoRefreshInputSchema.parse({})).toEqual({ force: false });
+    expect(rateAutoRefreshInputSchema.safeParse({ force: "si" }).success).toBe(false);
+    expect(rateAutoRefreshInputSchema.safeParse({ x: 1 }).success).toBe(false);
+  });
+
+  it("solo existen los cinco estados", () => {
+    expect(rateAutoStatusSchema.options).toEqual([
+      "ok",
+      "unchanged",
+      "manual_priority",
+      "source_failed",
+      "jump_rejected",
+    ]);
   });
 });

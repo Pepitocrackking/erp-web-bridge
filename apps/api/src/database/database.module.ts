@@ -34,6 +34,22 @@ export class DatabaseService implements OnModuleDestroy {
     }
   }
 
+  /** Transacción con el rol de la conexión (postgres): para tareas internas de la API, sin usuario. */
+  async withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await fn(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.pool.end();
   }

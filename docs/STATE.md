@@ -4,7 +4,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 
 ## Posición
 - **Fase actual:** **Fase 9: Tasa BCV automática** (rama `phase-9/bcv-rate`). El MVP (fases 0 a 8) está cerrado; el usuario pidió hacer **todo el backlog v1**, convertido en las fases 9 a 15 del ROADMAP.
-- **Última tarea completada:** 9.1 (fuentes de la tasa: `apps/api/src/exchange-rate/rate-sources.ts` y `rate-lookup.ts`, config `BCV_*`, fixture real del BCV). Siguiente: 9.2 (tarea programada).
+- **Última tarea completada:** 9.2 (`RateAutoService`: revisión periódica por organización, intervalo configurable en minutos en vez de «hora», prioridad de la tasa manual de HOY en hora de Caracas, migración `20261127000100_rate_auto.sql`, endpoints `GET|PUT /v1/orgs/:orgId/exchange-rate/auto` y `POST .../auto/refresh`). Ya implementados en el servicio: respaldo, `source_failed` y `jump_rejected` (falta mostrarlos en el panel: 9.3 y 9.4). Pruebas: API 27 nuevas de integración, RLS 57, shared-types 111.
 - **Estado:** en curso.
 
 ## Decisiones de la v1 (2026-11-27, ya resueltas, no volver a preguntar)

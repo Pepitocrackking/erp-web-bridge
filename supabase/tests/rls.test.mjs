@@ -1033,6 +1033,79 @@ describe("datos sensibles y tasa de cambio", () => {
     }));
 });
 
+describe("tasa automática (BCV): configuración por organización", () => {
+  const SET = `SELECT public.set_rate_auto_settings($1, $2, $3, $4)`;
+
+  it("el administrador la configura con la función; el personal, el comprador y otra empresa, no", () =>
+    withTenants(async (c) => {
+      for (const u of [U_OWNER_A, U_ADMIN_A]) {
+        await as(c, u);
+        const r = await attempt(c, SET, [ORG_A, true, 30, false]);
+        assert.ok(!r.error, `${u}: ${r.error?.message}`);
+      }
+      await as(c, U_ADMIN_A);
+      const cfg = await attempt(
+        c,
+        `SELECT rate_auto_enabled AS e, rate_auto_interval_minutes AS i, rate_auto_respect_manual AS r
+           FROM public.organizations`,
+      );
+      assert.deepEqual(cfg.rows, [{ e: true, i: 30, r: false }]);
+
+      for (const u of [U_STAFF_A, U_CUST_A1, U_OWNER_B, U_NOBODY]) {
+        await as(c, u);
+        assertDenied(await attempt(c, SET, [ORG_A, false, 60, true]), `función como ${u}`);
+      }
+      await as(c, null);
+      assertDenied(await attempt(c, SET, [ORG_A, false, 60, true]), "anon");
+    }));
+
+  it("rechaza un intervalo fuera de 15 a 1440 minutos", () =>
+    withTenants(async (c) => {
+      await as(c, U_ADMIN_A);
+      for (const minutes of [0, 14, 1441, null]) {
+        const r = await attempt(c, SET, [ORG_A, true, minutes, true]);
+        assert.ok(r.error, `intervalo ${minutes} debía fallar`);
+      }
+    }));
+
+  it("nadie escribe esas columnas directamente: ni el administrador", () =>
+    withTenants(async (c) => {
+      for (const u of [U_OWNER_A, U_ADMIN_A, U_STAFF_A]) {
+        await as(c, u);
+        for (const col of [
+          "rate_auto_enabled = true",
+          "rate_auto_interval_minutes = 15",
+          "rate_auto_respect_manual = false",
+          "rate_auto_status = 'ok'",
+          "rate_auto_checked_at = now()",
+        ]) {
+          assertDenied(
+            await attempt(c, `UPDATE public.organizations SET ${col} WHERE id = $1`, [ORG_A]),
+            `${u} ${col}`,
+          );
+        }
+      }
+    }));
+
+  it("los miembros leen el estado de su empresa y no el de otra", () =>
+    withTenants(async (c) => {
+      await c.query(
+        `UPDATE public.organizations SET rate_auto_status = 'source_failed', rate_auto_detail = 'x' WHERE id = $1`,
+        [ORG_A],
+      );
+      for (const u of [U_STAFF_A, U_CUST_A1]) {
+        await as(c, u);
+        const r = await attempt(c, `SELECT rate_auto_status AS s FROM public.organizations`);
+        assert.deepEqual(r.rows, [{ s: "source_failed" }]);
+      }
+      await as(c, U_OWNER_B);
+      const other = await attempt(c, `SELECT rate_auto_status AS s FROM public.organizations`);
+      assert.deepEqual(other.rows, [{ s: null }], "solo ve su propia empresa");
+      await as(c, null);
+      assertDenied(await attempt(c, `SELECT rate_auto_status FROM public.organizations`), "anon");
+    }));
+});
+
 describe("service_role (control: es lo que usa la API de ingesta)", () => {
   it("ve ambos tenants, lo que demuestra que las pruebas anteriores no son vacuas", () =>
     withTenants(async (c) => {
