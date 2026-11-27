@@ -38,6 +38,12 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3100
 WORKDIR /app
+# Parches de seguridad del sistema operativo: la imagen base puede ir semanas por detrás de Debian
+# (el escaneo con Trivy encontró libpam con CVE corregida en el repositorio pero no en la base).
+RUN apt-get update  && apt-get upgrade -y --no-install-recommends  && rm -rf /var/lib/apt/lists/*
+# La imagen final solo ejecuta `node`: sin npm, npx ni corepack (ni sus dependencias empaquetadas, que
+# el escaneo marcó con CVE altas) hay menos superficie de ataque y la imagen pesa menos.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 # Next "standalone" ya trae solo las dependencias que usa; en un monorepo anida la app en apps/web.
 COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static

@@ -163,3 +163,89 @@ $ E2E_HOST_RESOLVER_RULES="MAP host.docker.internal 127.0.0.1" pnpm exec playwri
 Incluye acceso y aprobación, catálogo, carrito y crédito, panel **en vivo** (Realtime), alertas de agente, simulador, PWA y el Gate 7 (el agente Go real contra el sandbox de Saint, hablando con la API del contenedor).
 
 **Una primera corrida dio 14 fallos, y no eran de las imágenes:** el panel se quedaba en «Conectando…» porque el navegador del anfitrión no resuelve `host.docker.internal` (`curl` da error 6; el websocket a `127.0.0.1` sí abre) y la web del contenedor había sido compilada con esa URL de Supabase. En un despliegue real la URL de Supabase es pública y sirve para ambos lados. Con la opción de Playwright anterior pasan los 50.
+
+## 8.5 Revisión de seguridad y LICENSE
+
+Informe completo, con tabla de hallazgos, credenciales de desarrollo y riesgos aceptados: [docs/security.md](../security.md). Aquí, las salidas.
+
+**Secretos en el historial (gitleaks, todo el historial y el árbol de trabajo)**
+
+```
+$ docker run --rm -v <repo>:/repo:ro zricethezav/gitleaks:latest git /repo --redact -v
+RuleID: jwt   File: apps/web/e2e/helpers.ts   |   RuleID: jwt   File: .env.example
+INF 73 commits scanned.   WRN leaks found: 2
+```
+
+Los dos son el mismo token: decodificado, `{"iss":"supabase-demo","role":"anon","exp":1983812996}`, la clave **anónima pública** de la pila local de Supabase (firmada con el secreto de demostración, también público). No hay ningún JWT `service_role` en el historial (`git log -S'c2VydmljZV9yb2xl'` vacío). Se registró una excepción acotada a ese token exacto (`.gitleaks.toml`):
+
+```
+$ gitleaks git /repo --config /repo/.gitleaks.toml --redact
+INF 73 commits scanned.   INF no leaks found
+$ gitleaks git /repo --config ... --pre-commit --staged      (lo que se comitea)
+INF no leaks found
+```
+
+Control positivo (el escáner sí detecta): un archivo temporal con una clave AWS de ejemplo y una `sk_live_…` → `leaks found: 1`. El escaneo del árbol de trabajo completo (`gitleaks dir`) marca 11 coincidencias, todas en artefactos locales **ignorados por git** (`apps/web/.next/**` y `supabase/.temp/start-secrets/**`, generados por Next y por la CLI de Supabase): `git check-ignore` lo confirma y `git ls-files` en esas rutas está vacío.
+
+**Dependencias**
+
+```
+$ cd packages/erp-agent && govulncheck ./...        (Go 1.26.5)
+Your code is affected by 15 vulnerabilities from the Go standard library.
+  (net/http, crypto/tls, crypto/x509, net/url, encoding/asn1, net/textproto…; corregidas en 1.26.6 a 1.26.11)
+$ (go.mod: toolchain go1.26.11; go get golang.org/x/crypto@latest)
+$ govulncheck ./...
+No vulnerabilities found.
+$ go test -race -count=1 ./...   → 16 paquetes ok
+
+$ pnpm audit --audit-level low
+2 vulnerabilities found   Severity: 2 moderate   (glob, minimatch; cadena de jest, solo desarrollo)
+$ (overrides en pnpm-workspace.yaml; pnpm install)
+$ pnpm audit --audit-level low
+No known vulnerabilities found
+$ pnpm lint · pnpm test · pnpm test:db   → todo en verde tras el cambio
+```
+
+**Imágenes Docker (Trivy, severidad HIGH y CRITICAL con corrección disponible)**
+
+```
+primer escaneo:   debian 12.15 → 4 (libpam, CVE-2025-6020)
+tras apt upgrade: debian 0, pero node-pkg → 6 HIGH (brace-expansion 5.0.9, dentro de /usr/local/lib/node_modules/npm
+                  de la imagen base, no de la aplicación)
+tras quitar npm/npx/corepack de la imagen final:
+  erp-web-bridge-api:test (debian 12.15)  0 vulnerabilidades, sin hallazgos en librerías
+  erp-web-bridge-web:test (debian 12.15)  0 vulnerabilidades, sin hallazgos en librerías
+compose up → api y web healthy; imágenes de ~400 MB
+```
+
+**RLS (auditoría sobre la base real y guardas automáticas)**
+
+```
+tablas de public sin RLS: 0 (10 de 10 con RLS)          SECURITY DEFINER sin search_path: 0 (11 de 11 con search_path="")
+anon: privilegios sobre tablas/columnas: 0; funciones ejecutables: 0
+authenticated: api_key_hash y agent_offline_notified_at no legibles; solo puede UPDATE (name) en organizations
+vistas de public: 1, con security_invoker=true
+org_members: solo un owner crea, modifica o quita owners; un admin no puede ascender a owner
+
+$ pnpm test:db     → tests 53, pass 53, fail 0   (48 de antes + 5 guardas estructurales)
+mutación (tabla sin RLS + función SECURITY DEFINER sin search_path + GRANT a anon):
+                   → pass 50, fail 3  (las 3 guardas los detectan)    tras limpiar: pass 53, fail 0
+```
+
+**Cabeceras de seguridad** — API (`apps/api/src/setup.ts`, `test/security-headers.int.spec.ts`, 4 pruebas: `/health`, un 401, un 404 y `/docs`) y web (`next.config.mjs`, `e2e/security.spec.ts`, 6 pruebas):
+
+```
+$ curl -sI localhost:3001/health   (contenedor)         $ curl -sI localhost:3100/login   (contenedor)
+X-Content-Type-Options: nosniff                         X-Content-Type-Options: nosniff
+X-Frame-Options: DENY                                   X-Frame-Options: DENY
+Referrer-Policy: no-referrer                            Content-Security-Policy: frame-ancestors 'none'
+Cache-Control: no-store                                 Referrer-Policy: strict-origin-when-cross-origin
+                                                        Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+$ playwright test e2e/security.spec.ts e2e/pwa.spec.ts  → 13 passed (la PWA y el service worker siguen funcionando)
+```
+
+**Secretos en logs del agente** (`internal/agent`): con una DSN de contraseña reconocible y log en `debug`, ni la conexión rechazada ni la DSN mal formada filtran la contraseña ni la clave de API, y una corrida completa tampoco filtra la clave. Las pruebas pasan.
+
+**LICENSE y política:** `LICENSE` (MIT, © 2026 Orlando Guerra), `"license": "MIT"` en los `package.json`, `SECURITY.md` y el aviso privado de vulnerabilidades activado en GitHub (`gh api repos/.../private-vulnerability-reporting` → `{"enabled":true}`). CI: nuevos jobs `secrets` (gitleaks sobre todo el historial) y `dependencies` (`pnpm audit` y `govulncheck`).
+
+**Incidencia durante la propia tarea:** el escaneo de lo que iba a comitearse dio 3 hallazgos y mi comando encadenado con `;` comiteó igualmente (el commit era local, sin subir). Eran los tres valores falsos de la prueba «los secretos no aparecen en los logs» (`API-KEY-SECRETA-…`, `S3cr3tPASSw0rd-…`). Se marcaron con `// gitleaks:allow` en esas líneas exactas (en lugar de una excepción más amplia), se encadenó el escaneo con `&&` para que bloquee el commit y se hizo `amend` del commit local. Resultado final: `74 commits scanned. no leaks found`.

@@ -1,0 +1,11 @@
+# Configuración del escaneo de secretos (gitleaks): se usan las reglas por defecto y UNA excepción.
+title = "erp-web-bridge"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Clave anónima PÚBLICA de la pila local de Supabase (role=anon, iss=supabase-demo). Es la misma en todo `supabase start`, no protege ningún dato real y no sirve contra un proyecto en la nube."
+regexes = [
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9\.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0''',
+]

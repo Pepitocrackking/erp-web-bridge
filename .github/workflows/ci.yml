@@ -67,3 +67,41 @@ jobs:
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./...
+
+  # Tarea 8.5: la seguridad se vigila en cada PR, no solo una vez. Detalle y criterios en docs/security.md.
+  secrets:
+    name: Secretos (gitleaks, todo el historial)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # el historial completo: un secreto borrado en un commit anterior sigue ahí
+
+      # Usa .gitleaks.toml de la raíz (reglas por defecto y una única excepción documentada).
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependencies:
+    name: Dependencias (pnpm audit, govulncheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Falla con avisos de gravedad moderada o mayor (incluye dependencias de desarrollo).
+      - run: pnpm audit --audit-level moderate
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/erp-agent/go.mod
+          cache-dependency-path: packages/erp-agent/go.sum
+      # Solo falla si el código del agente ALCANZA la función vulnerable (la biblioteca estándar incluida).
+      - name: govulncheck
+        working-directory: packages/erp-agent
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

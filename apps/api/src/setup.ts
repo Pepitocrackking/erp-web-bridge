@@ -11,12 +11,32 @@ export const JSON_BODY_LIMIT = "5mb";
 
 export const API_VERSION = "0.1.0";
 
+/**
+ * Cabeceras de endurecimiento en TODAS las respuestas (también 401 y 404): el navegador no adivina
+ * el tipo de contenido, la API no se puede enmarcar y no se filtra el origen. Las respuestas de la
+ * API dependen de quién pregunta, así que no deben guardarse en cachés compartidas (proxies, CDN):
+ * `no-store`, salvo en la documentación (`/docs`), cuyos archivos estáticos sí pueden cachearse.
+ * HSTS lo pone el proxy HTTPS de delante (ver docs/deploy.md).
+ */
+export function securityHeaders(
+  req: { path: string },
+  res: { setHeader(name: string, value: string): unknown },
+  next: () => void,
+): void {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  if (!req.path.startsWith("/docs")) res.setHeader("Cache-Control", "no-store");
+  next();
+}
+
 /** Configuración común de `main.ts` y de las pruebas, para que se comporten igual. */
 export function configureApp(app: INestApplication, config?: Pick<AppConfig, "trustProxy">): void {
   const express = app as NestExpressApplication;
   express.useBodyParser("json", { limit: JSON_BODY_LIMIT });
   // No anunciar el framework.
   express.disable("x-powered-by");
+  express.use(securityHeaders);
   // Sin proxy de confianza, X-Forwarded-For se ignora y no sirve para esquivar el rate limit.
   express.set("trust proxy", config?.trustProxy ?? false);
 }

@@ -160,7 +160,7 @@ Rama: `phase-8/portfolio`
 - [x] **8.2** Alertas de "agente sin conexión" en el panel.
 - [x] **8.3** README final con diagrama de arquitectura, capturas y guion de demo.
 - [x] **8.4** Despliegue de web y API, con Supabase en la nube.
-- [ ] **8.5** Revisión de seguridad (claves, RLS, dependencias) y `LICENSE`.
+- [x] **8.5** Revisión de seguridad (claves, RLS, dependencias) y `LICENSE`.
 - [ ] **8.6** Comando único `demo` que levanta todo desde un clon limpio.
 
 ### Gate 8

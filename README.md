@@ -124,13 +124,17 @@ Cada fase se cerró con una compuerta de verificación con datos reales (evidenc
 | Qué | Pruebas |
 |---|---|
 | Contratos compartidos (Zod) | 102 |
-| API (la mayoría, de integración contra PostgreSQL real) | 205 |
+| API (la mayoría, de integración contra PostgreSQL real) | 209 |
 | Web (unitarias) | 87 |
-| RLS multi-tenant | 48 |
+| RLS multi-tenant y guardas estructurales de seguridad | 53 |
 | Agente Go (16 paquetes, con `-race`; incluye pruebas contra el SQL Server del sandbox) | `go test ./...` |
-| E2E de punta a punta con Playwright (UI, Realtime, PWA, agente real y sandbox de Saint) | 50 |
+| E2E de punta a punta con Playwright (UI, Realtime, PWA, cabeceras de seguridad, agente real y sandbox de Saint) | 56 |
 
-El CI (GitHub Actions) corre formato, lint, las pruebas de RLS y de TypeScript con una base Supabase real, el build, y `gofmt`, `go vet`, build y pruebas del agente, en cada PR. Las E2E de Playwright necesitan la pila completa y se corren a mano (`pnpm e2e` en `apps/web`).
+El CI (GitHub Actions) corre formato, lint, las pruebas de RLS y de TypeScript con una base Supabase real, el build, `gofmt`, `go vet`, build y pruebas del agente, y además el **escaneo de secretos en todo el historial** (gitleaks), `pnpm audit` y `govulncheck`, en cada PR. Las E2E de Playwright necesitan la pila completa y se corren a mano (`pnpm e2e` en `apps/web`).
+
+## Seguridad
+
+Revisión de claves, RLS y dependencias con sus hallazgos, lo que se corrigió y los riesgos que se aceptan (dichos sin rodeos): [docs/security.md](docs/security.md). Para reportar una vulnerabilidad: [SECURITY.md](SECURITY.md).
 
 ## Estructura
 
@@ -153,3 +157,7 @@ erp-web-bridge/
 `OdooAdapter` · scraper de la tasa BCV con respaldo manual · precios escalonados por volumen · notificaciones por WhatsApp · `ChrystalAdapter` · actualización automática del agente · validar el `SaintAdapter` contra una base real de un cliente piloto (los nombres de columnas son de mejor esfuerzo y viven en `infra/saint-sandbox/mapping.saint.yaml`).
 
 El plan completo por fases está en [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Licencia
+
+[MIT](LICENSE) © 2026 Orlando Guerra.

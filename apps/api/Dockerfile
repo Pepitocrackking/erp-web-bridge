@@ -24,6 +24,12 @@ FROM node:24-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3001
 WORKDIR /app
+# Parches de seguridad del sistema operativo: la imagen base puede ir semanas por detrás de Debian
+# (el escaneo con Trivy encontró libpam con CVE corregida en el repositorio pero no en la base).
+RUN apt-get update  && apt-get upgrade -y --no-install-recommends  && rm -rf /var/lib/apt/lists/*
+# La imagen final solo ejecuta `node`: sin npm, npx ni corepack (ni sus dependencias empaquetadas, que
+# el escaneo marcó con CVE altas) hay menos superficie de ataque y la imagen pesa menos.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
