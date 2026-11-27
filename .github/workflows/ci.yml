@@ -30,6 +30,8 @@ jobs:
 
       - run: pnpm format:check
       - run: pnpm lint
+      # Funciones puras de `pnpm demo` (argumentos, YAML del agente, estado de la pila de Supabase).
+      - run: pnpm test:scripts
 
       # Las pruebas de integración de la API y las de RLS corren contra un Postgres real: la pila
       # local de Supabase con solo lo necesario (la base y GoTrue, que crea el esquema `auth`).

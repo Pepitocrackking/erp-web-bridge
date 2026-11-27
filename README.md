@@ -78,44 +78,70 @@ sequenceDiagram
 
 ## Guion de demo (5 minutos)
 
-Requisitos y arranque: ver [Probarlo en local](#probarlo-en-local). Capturas de cada paso en [`docs/screenshots/`](docs/screenshots).
+Arranque con un comando: `pnpm demo` (ver [Probarlo en local](#probarlo-en-local)). Capturas de cada paso en [`docs/screenshots/`](docs/screenshots).
 
 1. **Un clic, sin registro.** Abre `http://localhost:3100/login` y pulsa **«Entrar como Administrador Demo»**. Estás en el panel de la «Distribuidora Demo»: estado del agente, tasa del día, pedidos, clientes con su crédito y la bitácora de sincronización.
 2. **El ERP cambia, la web lo refleja al instante.** En el panel abre **«Simulador de ERP»**: es la tabla de inventario de un ERP local. Cambia el precio o la existencia de un producto y pulsa **«Sincronizar con la nube»**. Los cambios viajan por la misma API de ingesta que usa el agente real, y solo se envía lo modificado.
 3. **Dos pestañas.** En otra ventana entra como comprador (`cliente@demo-saint.test` / `demo1234`): el catálogo muestra el precio de su lista mayorista en USD y en Bs, y **cambia en vivo** cuando sincronizas en el paso 2, sin recargar.
 4. **La tasa manda.** En el panel escribe una tasa nueva y pulsa **«Fijar tasa»**: todos los precios en Bs del catálogo se recalculan en vivo. El historial queda registrado.
 5. **Un pedido con crédito.** Como comprador agrega productos al carrito. Verás el total en USD y Bs y **tu crédito disponible** (límite − deuda − pedidos en curso). Si el pedido lo supera, no se puede confirmar. Confirma uno: aparece en el panel como **«Pendiente de enviar al ERP»**.
-6. **Del pedido al borrador del ERP** (con el agente real y el sandbox de Saint, ver abajo). El agente lo recoge, lo deja como borrador en `SAPEDIDO` y el panel pasa a **«Enviado al ERP»** con la referencia, sin recargar. Si el ERP lo rechaza, el panel muestra el motivo y un botón **«Reintentar»**.
+6. **Del pedido al borrador del ERP** (el agente real y el sandbox de Saint ya los levantó `pnpm demo`). El agente lo recoge, lo deja como borrador en `SAPEDIDO` y el panel pasa a **«Enviado al ERP»** con la referencia, sin recargar. Si el ERP lo rechaza, el panel muestra el motivo y un botón **«Reintentar»**.
 7. **Cuando algo falla.** Detén el agente (o espera 3 minutos sin latido): el panel muestra el banner **«El agente local no responde»** con un «Qué hacer», un contador en la cabecera y el número en el título de la pestaña. Con un webhook configurado, también llega el aviso a tu sistema.
 
 ![Alerta de agente sin conexión](docs/screenshots/06-alerta-agente.png)
 
 ## Probarlo en local
 
-Requisitos: Docker, Node ≥ 24, pnpm ≥ 12 y Go ≥ 1.26 (solo para el agente).
+Requisitos: **Docker en marcha**, Node ≥ 24, pnpm ≥ 12 y Go ≥ 1.26 (solo para el agente; sin Go el demo arranca sin agente real).
+
+```bash
+git clone https://github.com/Pepitocrackking/erp-web-bridge.git && cd erp-web-bridge
+pnpm demo
+```
+
+Un solo comando, igual en Windows, macOS y Linux. Desde un clon limpio instala las dependencias, levanta **Supabase local** (base de datos, Auth y Realtime) y el **sandbox de Saint** (SQL Server en Docker), compila, arranca la **API**, la **web en modo demo** y el **agente real**, y termina **comprobando el flujo completo** de verdad:
+
+```
+✔ agente conectado y sincronizado
+✔ catálogo: 297 productos activos en la nube = 297 activos en SAPROD (Saint)
+✔ pedido creado por el comprador → «Enviado al ERP» con la referencia PW0000002
+✔ SAPEDIDO: existe exactamente 1 borrador de ese pedido (Estado = 'B')
+✔ tablas fiscales (SAFACT, SAITEMFAC, SAACXC) intactas
+Flujo completo verificado: pedido web → agente real → borrador en Saint → panel.
+```
+
+Tarda unos 4 minutos desde cero (la primera vez, además, Docker descarga imágenes). Al final imprime las URLs y los usuarios del guion de demo.
+
+| Comando | Qué hace |
+|---|---|
+| `pnpm demo` | Levanta todo y verifica el flujo. Se puede repetir: reutiliza lo que ya esté en marcha. |
+| `pnpm demo:stop` | Detiene API, web, agente, Supabase y Saint. Los datos se conservan. |
+| `pnpm demo status` | Qué está corriendo. |
+| `pnpm demo check` | Repite solo la verificación del flujo. |
+| `pnpm demo --reset` | Además, restablece la base de Supabase al seed. |
+| `pnpm demo --no-agent` | Sin agente real (si no tienes Go). |
+
+Qué esperar: el agente carga en la organización demo los 311 productos y 48 clientes del sandbox de Saint (297 activos), así que el catálogo, los créditos y las existencias que ves son los del «ERP». Los logs están en `.demo/logs/`. Las pruebas E2E de Playwright esperan el seed original: tras un demo, corre `pnpm db:reset` antes de `pnpm e2e`.
+
+`DEMO_MODE=true` habilita el botón de acceso demo y el simulador, y todo usa claves y contraseñas **públicas de desarrollo**: no lo uses en producción real ([docs/security.md](docs/security.md)). Para llevarlo a producción (imágenes Docker de la API y la web, Supabase en la nube) sigue [docs/deploy.md](docs/deploy.md). Más detalle en [docs/supabase-local.md](docs/supabase-local.md), [docs/saint-sandbox.md](docs/saint-sandbox.md) y [packages/erp-agent/README.md](packages/erp-agent/README.md).
+
+<details>
+<summary>Paso a paso, sin el comando <code>demo</code></summary>
 
 ```bash
 pnpm install
-grep '^NEXT_PUBLIC_' .env.example > apps/web/.env.local   # URL y clave pública de la pila local (en PowerShell: Select-String)
-pnpm db:start                           # Supabase local (la primera vez descarga imágenes)
-pnpm db:reset                           # migraciones + seed: 2 organizaciones, usuarios de prueba
+grep '^NEXT_PUBLIC_' .env.example > apps/web/.env.local   # en PowerShell: Select-String
+cp .env.example .env                                      # contraseña del sandbox de Saint
+pnpm db:start && pnpm db:reset                            # Supabase local + migraciones y seed
+bash scripts/saint-sandbox.sh up                          # SQL Server con las tablas de Saint (en Windows: scriptssaint-sandbox.ps1 up)
 pnpm build
-
-PORT=3001 node apps/api/dist/main.js    # API
-cd apps/web && DEMO_MODE=true pnpm exec next start -p 3100   # web (comandos en Git Bash o WSL)
+PORT=3001 node apps/api/dist/main.js                      # API
+cd apps/web && DEMO_MODE=true pnpm exec next start -p 3100   # web
+cd packages/erp-agent && cp agent.example.yaml agent.yaml    # api.api_key: erp_dev_demo_saint_key; dsn con el login erp_agent
+CGO_ENABLED=0 go build -o erp-agent.exe ./cmd/erp-agent && ./erp-agent.exe -config agent.yaml
 ```
 
-Para el paso 6 (agente real contra un Saint de prueba):
-
-```bash
-bash scripts/saint-sandbox.sh up                       # SQL Server con las tablas de Saint
-cd packages/erp-agent
-cp agent.example.yaml agent.yaml                       # api.api_key: erp_dev_demo_saint_key, dsn con el login erp_agent
-CGO_ENABLED=0 go build -o erp-agent.exe ./cmd/erp-agent
-./erp-agent.exe -config agent.yaml                     # o como servicio: erp-agent service install -config agent.yaml
-```
-
-`DEMO_MODE=true` habilita el botón de acceso demo y el simulador: **no lo actives en producción real**. Para llevarlo a producción (imágenes Docker de la API y la web, Supabase en la nube) sigue [docs/deploy.md](docs/deploy.md). Más detalle en [docs/supabase-local.md](docs/supabase-local.md), [docs/saint-sandbox.md](docs/saint-sandbox.md) y [packages/erp-agent/README.md](packages/erp-agent/README.md).
+</details>
 
 ## Calidad
 

@@ -18,7 +18,10 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:status": "supabase status",
-    "test:db": "node --test supabase/tests/rls.test.mjs"
+    "test:db": "node --test supabase/tests/rls.test.mjs",
+    "demo": "node scripts/demo.mjs",
+    "demo:stop": "node scripts/demo.mjs down",
+    "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

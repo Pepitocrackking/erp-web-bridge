@@ -249,3 +249,51 @@ $ playwright test e2e/security.spec.ts e2e/pwa.spec.ts  → 13 passed (la PWA y 
 **LICENSE y política:** `LICENSE` (MIT, © 2026 Orlando Guerra), `"license": "MIT"` en los `package.json`, `SECURITY.md` y el aviso privado de vulnerabilidades activado en GitHub (`gh api repos/.../private-vulnerability-reporting` → `{"enabled":true}`). CI: nuevos jobs `secrets` (gitleaks sobre todo el historial) y `dependencies` (`pnpm audit` y `govulncheck`).
 
 **Incidencia durante la propia tarea:** el escaneo de lo que iba a comitearse dio 3 hallazgos y mi comando encadenado con `;` comiteó igualmente (el commit era local, sin subir). Eran los tres valores falsos de la prueba «los secretos no aparecen en los logs» (`API-KEY-SECRETA-…`, `S3cr3tPASSw0rd-…`). Se marcaron con `// gitleaks:allow` en esas líneas exactas (en lugar de una excepción más amplia), se encadenó el escaneo con `&&` para que bloquee el commit y se hizo `amend` del commit local. Resultado final: `74 commits scanned. no leaks found`.
+
+## 8.6 Comando único `demo`
+
+**Qué se hizo:** `pnpm demo` (`scripts/demo.mjs`, solo módulos integrados de Node, igual en Windows, macOS y Linux; funciona antes de `pnpm install`), `pnpm demo:stop`, `pnpm demo status|check` y las banderas `--reset`, `--no-agent` y `--no-check`. Nueve pasos: requisitos; `pnpm install --frozen-lockfile`; `.env` y `apps/web/.env.local` (solo las `NEXT_PUBLIC_*`); Supabase completo (detecta y reinicia la pila parcial que deja el CI con `-x`); sandbox de Saint; `pnpm build` y compilación del agente; API y web en modo demo; **agente real** contra el sandbox (login restringido `erp_agent`, ciclos de 10 s); y una **verificación del flujo completo** que no simula nada. El estado (PIDs, logs, configuración del agente) vive en `.demo/` (ignorado por git). El README tiene ahora `pnpm demo` en lugar de los pasos manuales (que quedan en un desplegable).
+
+**Pruebas de las funciones puras** (`pnpm test:scripts`, también en el CI): argumentos, filtrado de `NEXT_PUBLIC_*` (la web no recibe `DATABASE_URL`), versión de Node, YAML del agente (barras normales, login `erp_agent` y nunca `sa`; además se cargó con el cargador **real** del agente, config estricta: `ok: erp=saint sync=10s reconcile=0s`) y estado de la pila de Supabase.
+
+```
+$ pnpm test:scripts   → tests 11, pass 11, fail 0
+```
+
+**Desde un clon limpio** (clon nuevo en una carpeta sin `node_modules`, `.env` ni `.demo`, tras `supabase stop --no-backup` y `docker compose down -v`, es decir, sin volúmenes de Supabase ni de Saint):
+
+```
+$ git clone ... && cd erp-clean2 && pnpm demo          (3 min 40 s, salida 0)
+[1/9] Comprobando requisitos     ✔ Node v24.14.1 ✔ pnpm ✔ Docker ✔ Go
+[3/9] Archivos de entorno        ✔ .env creado ✔ apps/web/.env.local creado
+[4/9] Supabase local             ✔ Supabase responde en http://127.0.0.1:54321
+[7/9] API y web                  ✔ API en http://localhost:3001 ✔ web en http://localhost:3100 (modo demo)
+[8/9] Agente local               ✔ agente en marcha (log: .demo\logs\agent.log)
+[9/9] Verificación
+  ✔ API: /health ok
+  ✔ web: /login responde y ofrece «Entrar como Administrador Demo»
+  ✔ Supabase Auth: inicia sesión el comprador y el administrador del demo
+  ✔ agente conectado (último latido 2026-11-27T03:19:17Z) y sincronizado
+  ✔ catálogo: 297 productos activos en la nube = 297 activos en SAPROD (Saint)
+  ✔ pedido 0bb7c828 creado por el comprador: pending_sync
+  ✔ el pedido pasó a «Enviado al ERP» con la referencia PW0000002
+  ✔ SAPEDIDO: existe exactamente 1 borrador de ese pedido (Estado = 'B')
+  ✔ tablas fiscales (SAFACT, SAITEMFAC, SAACXC) intactas: 9 filas, como en el seed
+Flujo completo verificado: pedido web → agente real → borrador en Saint → panel.
+```
+
+(La referencia es `PW0000002` porque el agente ya había llevado al ERP, como `PW0000001`, el pedido pendiente que trae el seed.)
+
+**Re-ejecución, estado y parada**
+
+```
+$ pnpm demo --no-check   (con todo ya levantado)  → «la pila ya estaba en marcha», api/web/agent en marcha después
+$ pnpm demo status       → api en marcha (PID…), web en marcha, agent en marcha, supabase complete, saint-sql en marcha
+$ pnpm demo check        → los 9 ✔ de arriba (incluido PW0000002)
+$ pnpm demo:stop         → detenido api/web/agent; saint-sql y Supabase detenidos
+$ pnpm demo status       → todo detenido; puertos 3001/3100/54321/14330 sin escuchar; 0 contenedores
+```
+
+**Dos defectos que salieron al probarlo, ya corregidos:** (1) la verificación comparaba contra «~311» productos y el sandbox tiene 311 pero **297 activos**; ahora compara contra `SELECT COUNT(*) FROM SAPROD WHERE Activo = 1` en el propio sandbox; (2) una prueba mía tenía las rutas de Windows con barras simples y fallaba (`String.raw`). Además, la primera ejecución en segundo plano dejó los procesos muertos: se comprobó que no era el script (un hijo desacoplado sobrevive entre llamadas, también lanzado desde `pnpm run`, y una ejecución en primer plano deja API, web y agente vivos); el entorno de esta sesión limpia lo que deja un trabajo en segundo plano al terminar.
+
+**Nota para las E2E:** tras un demo la organización `demo-saint` tiene los datos del sandbox de Saint (311 productos y 48 clientes del agente), no los del seed; `pnpm db:reset` antes de `pnpm e2e`.

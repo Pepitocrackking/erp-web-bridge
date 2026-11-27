@@ -22,3 +22,6 @@ next-env.d.ts
 packages/erp-agent/agent.yaml
 test-results/
 playwright-report/
+
+# Estado local de `pnpm demo` (PIDs, logs, configuración y binario del agente de demostración)
+.demo/
