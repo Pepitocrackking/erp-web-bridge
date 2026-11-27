@@ -28,6 +28,7 @@ import {
 } from "../../lib/admin";
 import { authorizeRealtime, createClient } from "../../lib/supabase/client";
 import { SignOutButton } from "../sign-out-button";
+import { RateAutoPanel } from "./rate-auto-panel";
 import { RateForm } from "./rate-form";
 import { RetryOrderButton } from "./retry-order-button";
 
@@ -167,6 +168,8 @@ export function AdminDashboard({
             const entry = toRateEntry(payload.new as Parameters<typeof toRateEntry>[0]);
             setRates((list) => mergeById(list, entry, PANEL_LIST_SIZE));
             setOrg((o) => ({ ...o, rateBs: entry.rateBs }));
+            // La API anota el resultado de la revisión (estado, fuente) justo después de registrar la tasa.
+            if (entry.source === "bcv") window.setTimeout(() => void refreshOrg(), 1500);
           },
         )
         .subscribe((status) => setLive(status === "SUBSCRIBED"));
@@ -178,7 +181,7 @@ export function AdminDashboard({
   }, [supabase, orgId, refreshOrg, refreshCustomers]);
 
   const agent = agentStatus(org.lastHeartbeatAt, now);
-  const alerts = panelAlerts({ agent, orders });
+  const alerts = panelAlerts({ agent, orders, rateAuto: org.rateAuto, rateBs: org.rateBs });
   const summary = alertSummary(alerts);
   const customerName = useMemo(
     () => new Map(customers.rows.map((c) => [c.id, c.name])),
@@ -258,6 +261,11 @@ export function AdminDashboard({
                   </ol>
                 </details>
               )}
+              {(alert.id === "rate-auto-failed" || alert.id === "rate-auto-jump") && (
+                <a href="#tasa" className="mt-2 inline-block text-sm underline">
+                  Ir a la tasa de cambio
+                </a>
+              )}
               {alert.id === "orders-error" && (
                 <a href="#pedidos" className="mt-2 inline-block text-sm underline">
                   Ver pedidos
@@ -311,7 +319,11 @@ export function AdminDashboard({
         </dl>
       </section>
 
-      <section aria-label="Tasa de cambio" className="rounded-lg border border-slate-200 p-4">
+      <section
+        id="tasa"
+        aria-label="Tasa de cambio"
+        className="rounded-lg border border-slate-200 p-4"
+      >
         <h2 className="mb-3 text-lg font-semibold">Tasa de cambio</h2>
         <p className="mb-3">
           Vigente: <strong data-testid="current-rate">{formatBs(org.rateBs)}</strong> por USD
@@ -321,6 +333,7 @@ export function AdminDashboard({
         ) : (
           <p className="text-sm text-slate-600">Solo un administrador puede cambiar la tasa.</p>
         )}
+        <RateAutoPanel auto={org.rateAuto} canEdit={canSetRate} onChanged={refreshOrg} />
         <details className="mt-4">
           <summary className="cursor-pointer text-sm underline">Historial reciente</summary>
           <ul className="mt-2 text-sm" data-testid="rate-history">

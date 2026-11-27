@@ -1,4 +1,4 @@
-import { EXCHANGE_RATE_MAX } from "@erp-web-bridge/shared-types";
+import { EXCHANGE_RATE_MAX, formatBs } from "@erp-web-bridge/shared-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Un agente que no ha dado señales en este tiempo se considera sin conexión (el latido es cada minuto). */
@@ -23,8 +23,49 @@ export function agentStatus(lastHeartbeatAt: string | null, nowMs: number): Agen
 
 export type AlertLevel = "error" | "warning" | "info";
 
+/** Tasa automática (BCV) de la organización: configuración y resultado de la última revisión. */
+export interface RateAutoState {
+  enabled: boolean;
+  intervalMinutes: number;
+  respectManual: boolean;
+  checkedAt: string | null;
+  okAt: string | null;
+  status: "ok" | "unchanged" | "manual_priority" | "source_failed" | "jump_rejected" | null;
+  detail: string | null;
+  provider: string | null;
+}
+
+/** Intervalos que ofrece el panel (la API admite cualquier valor de 15 a 1440 minutos). */
+export const RATE_AUTO_INTERVALS: readonly number[] = [15, 30, 60, 180, 360, 720, 1440];
+
+export function intervalLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} minutos`;
+  if (minutes === 60) return "1 hora";
+  if (minutes < 1440) return `${minutes / 60} horas`;
+  return "24 horas";
+}
+
+const RATE_AUTO_STATUS_TEXT: Record<NonNullable<RateAutoState["status"]>, string> = {
+  ok: "Tasa actualizada",
+  unchanged: "Sin cambios",
+  manual_priority: "Se respetó la tasa manual de hoy",
+  source_failed: "No respondió ninguna fuente",
+  jump_rejected: "Lectura descartada por variar demasiado",
+};
+
+/** Texto del resultado de la última revisión para la sección de la tasa. */
+export function rateAutoStatusText(state: RateAutoState): string {
+  if (!state.enabled) return "Desactivada";
+  if (!state.status) return "Pendiente de la primera revisión";
+  const via =
+    state.provider && (state.status === "ok" || state.status === "unchanged")
+      ? ` (${state.provider})`
+      : "";
+  return `${RATE_AUTO_STATUS_TEXT[state.status]}${via}`;
+}
+
 export interface PanelAlert {
-  id: "agent-offline" | "agent-never" | "orders-error";
+  id: "agent-offline" | "agent-never" | "orders-error" | "rate-auto-failed" | "rate-auto-jump";
   level: AlertLevel;
   title: string;
   detail: string;
@@ -39,6 +80,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function panelAlerts(input: {
   agent: AgentStatus;
   orders: readonly { status: string }[];
+  rateAuto?: RateAutoState | null;
+  rateBs?: number;
 }): PanelAlert[] {
   const alerts: PanelAlert[] = [];
   const waiting = input.orders.filter((o) => o.status === "pending_sync").length;
@@ -70,6 +113,23 @@ export function panelAlerts(input: {
       level: "warning",
       title: `${plural(failed, "pedido", "pedidos")} con error`,
       detail: "El ERP no los aceptó. Revisa el motivo en la lista de pedidos y usa «Reintentar».",
+    });
+  }
+  const auto = input.rateAuto;
+  if (auto?.enabled && auto.status === "source_failed") {
+    const current = input.rateBs === undefined ? "" : ` (${formatBs(input.rateBs)} por USD)`;
+    alerts.push({
+      id: "rate-auto-failed",
+      level: "warning",
+      title: "No se pudo actualizar la tasa del BCV",
+      detail: `Ninguna fuente respondió, así que se conserva la última tasa${current}. Se reintentará sola; si la necesitas ya, fíjala a mano.`,
+    });
+  } else if (auto?.enabled && auto.status === "jump_rejected") {
+    alerts.push({
+      id: "rate-auto-jump",
+      level: "warning",
+      title: "La tasa del BCV cambió demasiado y no se aplicó",
+      detail: `${auto.detail ?? "La lectura varía mucho frente a la tasa vigente."} Si es correcta, usa «Actualizar ahora» y acepta el cambio; si no, fíjala a mano.`,
     });
   }
   return alerts;
@@ -149,6 +209,64 @@ export function retryOutcome(
   return { error: "No se pudo reintentar el pedido. Inténtalo de nuevo." };
 }
 
+/** Lee el formulario de la tasa automática; null si algo no es válido. */
+export function parseRateAutoForm(form: {
+  get(name: string): FormDataEntryValue | null;
+}): { enabled: boolean; interval_minutes: number; respect_manual: boolean } | null {
+  const interval = Number(form.get("interval"));
+  if (!Number.isInteger(interval) || interval < 15 || interval > 1440) return null;
+  return {
+    enabled: form.get("enabled") === "on",
+    interval_minutes: interval,
+    respect_manual: form.get("respectManual") === "on",
+  };
+}
+
+/** Traduce la respuesta de PUT .../exchange-rate/auto a un mensaje para el administrador. */
+export function saveRateAutoOutcome(
+  status: number,
+  enabled: boolean,
+): { error: string | null; info?: string } {
+  if (status === 200) {
+    return {
+      error: null,
+      info: enabled ? "Tasa automática activada." : "Tasa automática desactivada.",
+    };
+  }
+  if (status === 403)
+    return { error: "Solo un administrador puede configurar la tasa automática." };
+  if (status === 429) return { error: "Demasiados cambios seguidos. Espera un minuto." };
+  return { error: "No se pudo guardar la configuración. Inténtalo de nuevo." };
+}
+
+/** Traduce la respuesta de POST .../exchange-rate/auto/refresh («Actualizar ahora»). */
+export function refreshRateAutoOutcome(
+  status: number,
+  body: { status?: string | null; detail?: string | null; provider?: string | null } | null,
+): { error: string | null; info?: string } {
+  if (status === 403) return { error: "Solo un administrador puede actualizar la tasa." };
+  if (status === 429) return { error: "Demasiados intentos seguidos. Espera un minuto." };
+  if (status !== 201 && status !== 200) {
+    return { error: "No se pudo actualizar la tasa. Inténtalo de nuevo." };
+  }
+  switch (body?.status) {
+    case "ok":
+      return { error: null, info: `Tasa actualizada desde ${body.provider ?? "el BCV"}.` };
+    case "unchanged":
+      return { error: null, info: "La tasa del BCV es la misma que la vigente." };
+    case "manual_priority":
+      return { error: null, info: body.detail ?? "Hay una tasa manual de hoy; no se aplicó." };
+    case "jump_rejected":
+      return {
+        error: `${body.detail ?? "La lectura varía demasiado."} Marca «Aceptar aunque cambie mucho» para aplicarla.`,
+      };
+    case "source_failed":
+      return { error: "No respondió ninguna fuente. Se conserva la última tasa." };
+    default:
+      return { error: "Respuesta inesperada del servidor." };
+  }
+}
+
 const ENTITY_LABELS: Record<string, string> = {
   products: "Productos",
   customers: "Clientes",
@@ -177,6 +295,7 @@ export function parseRateInput(text: string): number | null {
 export interface OrgStatus {
   name: string;
   rateBs: number;
+  rateAuto: RateAutoState;
   lastSyncAt: string | null;
   lastHeartbeatAt: string | null;
   agentVersion: string | null;
@@ -233,16 +352,30 @@ function must<T>(
   return result.data as NonNullable<T>;
 }
 
+// Una sola cadena literal: el cliente de Supabase deduce los tipos de las columnas de ella.
+const ORG_STATUS_COLUMNS =
+  "name, exchange_rate_bs, last_sync_at, last_heartbeat_at, agent_version, rate_auto_enabled, rate_auto_interval_minutes, rate_auto_respect_manual, rate_auto_checked_at, rate_auto_ok_at, rate_auto_status, rate_auto_detail, rate_auto_provider" as const;
+
 export async function fetchOrgStatus(supabase: SupabaseClient, orgId: string): Promise<OrgStatus> {
   const { data: o, error } = await supabase
     .from("organizations")
-    .select("name, exchange_rate_bs, last_sync_at, last_heartbeat_at, agent_version")
+    .select(ORG_STATUS_COLUMNS)
     .eq("id", orgId)
     .single();
   if (error) throw new Error(`No se pudo leer la organización: ${error.message}`);
   return {
     name: o.name,
     rateBs: Number(o.exchange_rate_bs),
+    rateAuto: {
+      enabled: o.rate_auto_enabled,
+      intervalMinutes: o.rate_auto_interval_minutes,
+      respectManual: o.rate_auto_respect_manual,
+      checkedAt: o.rate_auto_checked_at,
+      okAt: o.rate_auto_ok_at,
+      status: o.rate_auto_status,
+      detail: o.rate_auto_detail,
+      provider: o.rate_auto_provider,
+    },
     lastSyncAt: o.last_sync_at,
     lastHeartbeatAt: o.last_heartbeat_at,
     agentVersion: o.agent_version,

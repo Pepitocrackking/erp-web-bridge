@@ -175,8 +175,8 @@ Rama: `phase-9/bcv-rate`
 
 - [x] **9.1** Servicio de la API que obtiene la tasa oficial de bcv.org.ve (fuente primaria) y de una API pública de respaldo (secundaria), con tiempos de espera, validación de rango y pruebas contra servidores simulados (HTML real guardado como fixture).
 - [x] **9.2** Tarea programada por organización (activable y con hora configurable) que registra la tasa con `source = 'bcv'` solo si cambió; la tasa manual sigue mandando si es más reciente que la última automática y la organización lo pide.
-- [ ] **9.3** Respaldo y alertas: si ambas fuentes fallan se conserva la última tasa y el panel avisa; si la tasa cambia más de un umbral entre lecturas se descarta y se avisa.
-- [ ] **9.4** Panel: interruptor «Tasa automática (BCV)», fuente y hora de la última tasa, botón «Actualizar ahora» y respaldo manual intacto.
+- [x] **9.3** Respaldo y alertas: si ambas fuentes fallan se conserva la última tasa y el panel avisa; si la tasa cambia más de un umbral entre lecturas se descarta y se avisa.
+- [x] **9.4** Panel: interruptor «Tasa automática (BCV)», fuente y hora de la última tasa, botón «Actualizar ahora» y respaldo manual intacto.
 
 ### Gate 9
 - [ ] Con las fuentes simuladas: la tasa se actualiza, cae a la secundaria, cae a la manual y el panel lo refleja.

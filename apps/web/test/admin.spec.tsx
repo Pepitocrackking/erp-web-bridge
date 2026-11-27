@@ -8,9 +8,15 @@ import {
   isOrderId,
   mergeById,
   orderErrorText,
+  intervalLabel,
   orderStatusLabel,
+  parseRateAutoForm,
   parseRateInput,
+  rateAutoStatusText,
+  refreshRateAutoOutcome,
   retryOutcome,
+  saveRateAutoOutcome,
+  type RateAutoState,
   syncEntityLabel,
 } from "../lib/admin";
 
@@ -256,5 +262,128 @@ describe("alertSummary", () => {
       level: "info",
       label: "Sin alertas",
     });
+  });
+});
+
+describe("tasa automática (BCV) en el panel", () => {
+  const online = { level: "online", text: "Conectado" } as const;
+  const base: RateAutoState = {
+    enabled: true,
+    intervalMinutes: 60,
+    respectManual: true,
+    checkedAt: null,
+    okAt: null,
+    status: null,
+    detail: null,
+    provider: null,
+  };
+
+  it("avisa cuando ninguna fuente respondió y dice qué tasa se conserva", () => {
+    const [a] = panelAlerts({
+      agent: online,
+      orders: [],
+      rateAuto: { ...base, status: "source_failed" },
+      rateBs: 40.5,
+    });
+    expect(a).toMatchObject({ id: "rate-auto-failed", level: "warning" });
+    expect(a.detail).toContain("40,50");
+  });
+
+  it("avisa cuando se descartó una lectura con un salto, con el motivo", () => {
+    const [a] = panelAlerts({
+      agent: online,
+      orders: [],
+      rateAuto: { ...base, status: "jump_rejected", detail: "La lectura (4000) varía 9900 %." },
+      rateBs: 40,
+    });
+    expect(a).toMatchObject({ id: "rate-auto-jump", level: "warning" });
+    expect(a.detail).toContain("9900 %");
+    expect(a.detail).toContain("Actualizar ahora");
+  });
+
+  it.each(["ok", "unchanged", "manual_priority", null] as const)(
+    "no hay alerta si el estado es %s",
+    (status) => {
+      expect(panelAlerts({ agent: online, orders: [], rateAuto: { ...base, status } })).toEqual([]);
+    },
+  );
+
+  it("no avisa si la tasa automática está apagada, aunque quede un error viejo", () => {
+    expect(
+      panelAlerts({
+        agent: online,
+        orders: [],
+        rateAuto: { ...base, enabled: false, status: "source_failed" },
+      }),
+    ).toEqual([]);
+  });
+
+  it("cuenta como alerta que requiere atención", () => {
+    const alerts = panelAlerts({
+      agent: online,
+      orders: [],
+      rateAuto: { ...base, status: "source_failed" },
+    });
+    expect(alertSummary(alerts)).toMatchObject({ count: 1, level: "warning" });
+  });
+
+  it("etiquetas de intervalo y de estado", () => {
+    expect(intervalLabel(15)).toBe("15 minutos");
+    expect(intervalLabel(60)).toBe("1 hora");
+    expect(intervalLabel(360)).toBe("6 horas");
+    expect(intervalLabel(1440)).toBe("24 horas");
+    expect(rateAutoStatusText({ ...base, enabled: false })).toBe("Desactivada");
+    expect(rateAutoStatusText(base)).toMatch(/primera revisión/);
+    expect(rateAutoStatusText({ ...base, status: "ok", provider: "bcv.org.ve" })).toBe(
+      "Tasa actualizada (bcv.org.ve)",
+    );
+    expect(rateAutoStatusText({ ...base, status: "source_failed" })).toMatch(/ninguna fuente/i);
+  });
+
+  it("lee el formulario: casillas apagadas valen false y el intervalo debe estar en rango", () => {
+    const form = (entries: Record<string, string>) => {
+      const data = new FormData();
+      for (const [k, v] of Object.entries(entries)) data.set(k, v);
+      return data;
+    };
+    expect(parseRateAutoForm(form({ enabled: "on", interval: "30", respectManual: "on" }))).toEqual(
+      {
+        enabled: true,
+        interval_minutes: 30,
+        respect_manual: true,
+      },
+    );
+    expect(parseRateAutoForm(form({ interval: "60" }))).toEqual({
+      enabled: false,
+      interval_minutes: 60,
+      respect_manual: false,
+    });
+    for (const bad of ["", "abc", "14", "1441", "30.5"]) {
+      expect(parseRateAutoForm(form({ interval: bad }))).toBeNull();
+    }
+  });
+
+  it("mensajes de guardar y de actualizar ahora", () => {
+    expect(saveRateAutoOutcome(200, true).info).toMatch(/activada/);
+    expect(saveRateAutoOutcome(200, false).info).toMatch(/desactivada/);
+    expect(saveRateAutoOutcome(403, true).error).toMatch(/administrador/);
+    expect(saveRateAutoOutcome(500, true).error).toMatch(/No se pudo/);
+
+    expect(refreshRateAutoOutcome(201, { status: "ok", provider: "dolarapi" }).info).toContain(
+      "dolarapi",
+    );
+    expect(refreshRateAutoOutcome(201, { status: "unchanged" }).info).toMatch(/misma/);
+    expect(
+      refreshRateAutoOutcome(201, { status: "manual_priority", detail: "Manual de hoy." }).info,
+    ).toBe("Manual de hoy.");
+    const jump = refreshRateAutoOutcome(201, { status: "jump_rejected", detail: "Varía 99 %." });
+    expect(jump.error).toContain("Varía 99 %.");
+    expect(jump.error).toContain("Aceptar aunque cambie mucho");
+    expect(refreshRateAutoOutcome(201, { status: "source_failed" }).error).toMatch(
+      /ninguna fuente/i,
+    );
+    expect(refreshRateAutoOutcome(403, null).error).toMatch(/administrador/);
+    expect(refreshRateAutoOutcome(429, null).error).toMatch(/Espera/);
+    expect(refreshRateAutoOutcome(201, null).error).toMatch(/inesperada/);
   });
 });
