@@ -164,9 +164,9 @@ Rama: `phase-8/portfolio`
 - [x] **8.6** Comando único `demo` que levanta todo desde un clon limpio.
 
 ### Gate 8
-- [ ] Desde un clon limpio, el comando `demo` levanta el sistema y el flujo completo funciona.
-- [ ] El servicio de Windows se instala, arranca y se desinstala (probado).
-- [ ] No hay secretos en el historial (escaneo).
+- [x] Desde un clon limpio, el comando `demo` levanta el sistema y el flujo completo funciona.
+- [x] El servicio de Windows se instala, arranca y se desinstala (probado).
+- [x] No hay secretos en el historial (escaneo).
 
 ---
 

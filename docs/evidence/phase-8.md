@@ -297,3 +297,28 @@ $ pnpm demo status       → todo detenido; puertos 3001/3100/54321/14330 sin es
 **Dos defectos que salieron al probarlo, ya corregidos:** (1) la verificación comparaba contra «~311» productos y el sandbox tiene 311 pero **297 activos**; ahora compara contra `SELECT COUNT(*) FROM SAPROD WHERE Activo = 1` en el propio sandbox; (2) una prueba mía tenía las rutas de Windows con barras simples y fallaba (`String.raw`). Además, la primera ejecución en segundo plano dejó los procesos muertos: se comprobó que no era el script (un hijo desacoplado sobrevive entre llamadas, también lanzado desde `pnpm run`, y una ejecución en primer plano deja API, web y agente vivos); el entorno de esta sesión limpia lo que deja un trabajo en segundo plano al terminar.
 
 **Nota para las E2E:** tras un demo la organización `demo-saint` tiene los datos del sandbox de Saint (311 productos y 48 clientes del agente), no los del seed; `pnpm db:reset` antes de `pnpm e2e`.
+
+---
+
+# Gate 8 (2026-11-27, sobre el commit `bee8005`, todo con salida real de este turno)
+
+| # | Criterio | Comando | Esperado | Resultado | Veredicto |
+|---|---|---|---|---|---|
+| 1 | Desde un clon limpio, `demo` levanta el sistema y el flujo completo funciona | `supabase stop --no-backup` + `docker compose down -v` (0 volúmenes); `git clone` a carpeta nueva (sin `node_modules`, `.env` ni `.demo`); `pnpm demo` | salida 0 y las 9 comprobaciones en verde | salida 0; API, web (modo demo), Supabase Auth, agente conectado y sincronizado, **297 activos en la nube = 297 activos en SAPROD**, pedido web → «Enviado al ERP» `PW0000002`, **1 borrador `Estado='B'` en SAPEDIDO**, tablas fiscales intactas (9 filas) | ✅ |
+| 1b | El panel lo muestra de verdad | Chromium real contra el demo en marcha | agente «Conectado», pedidos enviados con su referencia | `{"agent":"Conectado","counter":"Sin alertas","customers":"48 clientes","pedidos_enviados_al_erp":3,"referencias":["PW0000002","PW0000001","PED-000123"]}` | ✅ |
+| 2 | El servicio de Windows se instala, arranca y se desinstala | `scripts/test-windows-service.ps1` elevado (UAC aceptado), binario compilado del commit final, API real y Supabase | `TODO OK`, salida 0 | 23 comprobaciones OK (instala, `LocalService`, sin secretos en la línea de comandos, 3 reinicios 5/15/60 s, ACL del `agent.yaml`, arranca, escribe log, latido a la API, **el SCM lo reinicia tras matarlo**, parada limpia, desinstala sin borrar datos); después `sc query` → error 1060 y sin carpeta en ProgramData | ✅ |
+| 3 | No hay secretos en el historial | `gitleaks git /repo --config .gitleaks.toml --redact` (todo el historial) | 0 hallazgos | `75 commits scanned. no leaks found` (la única excepción es la clave anónima pública de Supabase local, ver 8.5) | ✅ |
+
+**Verificación completa (estado limpio: pila recreada, `pnpm install --frozen-lockfile`, `pnpm db:reset`):**
+
+| Qué | Resultado |
+|---|---|
+| `bash scripts/validate-workflow.sh` | `RESULTADO: OK` |
+| `pnpm format:check` · `pnpm lint` · `pnpm build` | sin errores · 4 de 4 · 3 de 3 |
+| `pnpm test` | shared-types **102**, web **87**, API **209** (14 suites, la mayoría de integración contra PostgreSQL real) |
+| `pnpm test:scripts` | **11** de 11 |
+| `pnpm test:db` (RLS y guardas estructurales) | **53** de 53 |
+| `go vet` (Windows y Linux) · `gofmt -l` | sin salida |
+| `go test -race -count=1 ./...` (con `SAINT_TEST_DSN` y `SAINT_AGENT_TEST_DSN` contra el SQL Server del sandbox) | 16 paquetes `ok`; **0 pruebas omitidas** en `internal/erp/saint` |
+| `pnpm exec playwright test` (pila completa; incluye el Gate 7 con el agente real) | **56 pasan**, 6 omitidas (las capturas del README, solo con `SCREENSHOTS=1`) |
+| `govulncheck ./...` · `pnpm audit --audit-level moderate` | `No vulnerabilities found` · `No known vulnerabilities found` |
