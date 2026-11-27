@@ -3,10 +3,16 @@
 Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo lee `retomar`. Se importa desde `CLAUDE.md`, así que se carga solo tras un `/clear`.
 
 ## Posición
-- **Fase actual:** ninguna. **El proyecto está completo**: las 9 fases (0 a 8) están cerradas y fusionadas.
-- **Rama:** `main`.
-- **Última tarea completada:** Fase 8 (endurecimiento y portafolio), con el Gate 8 en verde. Evidencia en `docs/evidence/phase-8.md`.
-- **Estado:** sin trabajo pendiente del ROADMAP. Lo que sigue está en el backlog v1 (ver «Siguiente acción»).
+- **Fase actual:** **Fase 9: Tasa BCV automática** (rama `phase-9/bcv-rate`). El MVP (fases 0 a 8) está cerrado; el usuario pidió hacer **todo el backlog v1**, convertido en las fases 9 a 15 del ROADMAP.
+- **Última tarea completada:** ninguna de la Fase 9 todavía (ROADMAP ampliado).
+- **Estado:** en curso.
+
+## Decisiones de la v1 (2026-11-27, ya resueltas, no volver a preguntar)
+- **Orden:** 9 tasa BCV, 10 precios escalonados, 11 autoactualización del agente, 12 OdooAdapter, 13 ChrystalAdapter, 14 WhatsApp, 15 validación de Saint (de menor a mayor riesgo).
+- **BCV:** bcv.org.ve como fuente primaria, API pública de respaldo como secundaria y la tasa manual como último recurso; alerta si la fuente cambia.
+- **Chrystal:** adaptador sobre un sandbox supuesto (motor SQL genérico), con mapeo configurable y marcado **no validado** contra Chrystal real.
+- **WhatsApp:** WhatsApp Cloud API de Meta detrás de una interfaz `Notifier`, probado contra un simulador local. No se envían mensajes reales sin credenciales del usuario.
+- **Validación de Saint:** sin base real no se puede validar; la fase 15 entrega la herramienta de descubrimiento de esquema y la guía de piloto, y lo documenta como pendiente.
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
