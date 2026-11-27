@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   fetchCustomers,
@@ -11,7 +10,6 @@ import { fetchMembership } from "../../lib/catalog";
 import { simulatorConfig } from "../../lib/simulator";
 import { createClient } from "../../lib/supabase/server";
 import { AdminDashboard } from "./dashboard";
-import { SignOutButton } from "../sign-out-button";
 
 export const metadata = { title: "Panel · ERP Web Bridge" };
 
@@ -42,33 +40,14 @@ export default async function AdminPage() {
     fetchSyncLogs(supabase, membership.orgId),
   ]);
 
+  // La cabecera vive en el componente cliente: lleva el contador de alertas, que se actualiza en vivo.
   return (
     <main className="mx-auto max-w-6xl p-4 sm:p-8">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">Panel de administración</h1>
-          <p className="text-sm text-slate-600">{membership.orgName}</p>
-        </div>
-        <nav aria-label="Navegación del panel" className="flex items-center gap-4 text-sm">
-          {showSimulator && (
-            <Link href="/admin/simulador" className="underline">
-              Simulador de ERP
-            </Link>
-          )}
-          {isAdmin && (
-            <Link href="/admin/solicitudes" className="underline">
-              Solicitudes de acceso
-            </Link>
-          )}
-          <Link href="/catalogo" className="underline">
-            Catálogo
-          </Link>
-          <SignOutButton className="underline" />
-        </nav>
-      </header>
       <AdminDashboard
         orgId={membership.orgId}
+        orgName={membership.orgName}
         canSetRate={isAdmin}
+        showSimulator={showSimulator}
         initial={{ org, rates, customers, orders, logs }}
       />
     </main>

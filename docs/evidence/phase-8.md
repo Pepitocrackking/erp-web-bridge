@@ -63,3 +63,40 @@ TODO OK        EXIT=0
 Después de la corrida: `sc query ErpAgentTest` → `ERROR 1060` (no existe) y no queda `C:\ProgramData\ErpAgentTest`.
 
 La primera corrida dio 3 FALLO que eran del script, no del agente (Windows en español: `sc` imprime `REINICIAR`/`VERDADERO` y `icacls` `SERVICIO LOCAL`); el script ahora compara números y SID, no palabras traducidas.
+
+## 8.2 Alertas de «agente sin conexión»
+
+**Qué se hizo** (detalle y formato de los mensajes en `docs/agent-alerts.md`)
+
+- **Panel (siempre activo):** banner rojo «El agente local no responde» (hace cuánto, catálogo posiblemente desactualizado, pedidos esperando y un desplegable «Qué hacer» con `erp-agent service status|start` y el log), **contador en la cabecera** que lleva al detalle, el número entre paréntesis en el **título de la pestaña**, aviso informativo si el agente nunca se conectó y advertencia por pedidos con error. Todo en vivo, sin recargar. La cabecera pasó al componente cliente (`app/admin/dashboard.tsx`) para que el contador se actualice.
+- **Webhook opcional (API):** `AgentAlertsService` (`NOTIFY_WEBHOOK_URL`, `NOTIFY_WEBHOOK_SECRET`, `NOTIFY_OFFLINE_AFTER_SECONDS`, `NOTIFY_CHECK_INTERVAL_SECONDS`). Un aviso por caída y otro por recuperación, con memoria en la base (`organizations.agent_offline_notified_at`, migración `..1000`), firma HMAC-SHA256, reintento si el destino falla, solo organizaciones activas que alguna vez se conectaron. Una URL inválida detiene el arranque.
+
+**Un fallo real que encontró la prueba:** deshacer la reclamación tras un webhook caído comparaba un `Date` de JavaScript (milisegundos) con un `timestamptz` de Postgres (microsegundos) y nunca coincidía: la caída no se reintentaba jamás. Se corrigió devolviendo la marca como texto y comparando con `::timestamptz`.
+
+**Pruebas**
+
+```
+$ pnpm test
+shared-types: Tests 102 passed      web: Tests 87 passed (+10: panelAlerts, alertSummary)
+api: Test Suites 13 passed, Tests 205 passed (+23: 11 de integración del webhook, 12 de configuración)
+$ pnpm test:db      → pass 48, fail 0
+$ pnpm lint && pnpm format:check   → sin errores
+$ pnpm db:reset     → «Applying migration 20261126001000_agent_alerts.sql»
+$ pnpm exec playwright test   (apps/web, pila completa)   → 50 passed (2.9m)
+```
+
+Las 11 de integración usan un servidor HTTP real como receptor: caída una sola vez, ventana configurable, organización desactivada, recuperación y nueva caída, destino que responde 500 (se reintenta), conexión rechazada, firma con y sin secreto, tres instancias a la vez sin duplicar y temporizador solo con webhook.
+
+Las 3 E2E nuevas (`e2e/agent-alerts.spec.ts`, organización propia): agente que nunca se conectó; caída detectada **en vivo** (banner con `role="alert"`, contador «1 alerta», título `(1) Panel · ERP Web Bridge`, «Qué hacer», enlace `#alertas`) y recuperación sin recargar tras un latido real de la API; panel abierto con el agente ya caído.
+
+**Demostración con el proceso real** (API compilada con `NOTIFY_*`, receptor HTTP que verifica la firma):
+
+```
+Aviso de agente sin conexión activo: webhook en localhost:9100, ventana 180s, revisión cada 3s
+{"evento":"agent.offline","firma_valida":true,"org":"live-alerts","offline_for_seconds":720,"message":"El agente local de «Demo Alertas Vivo» no da señales desde hace 12 min. ..."}
+$ curl -X POST /v1/agent/heartbeat -H "x-api-key: ..."          (el agente vuelve)
+{"evento":"agent.online","firma_valida":true,"org":"live-alerts","message":"El agente local de «Demo Alertas Vivo» volvió a conectarse."}
+10 s después: 3 líneas en total (sin repeticiones). Tras reiniciar la API: 3 líneas (no reenvía lo ya avisado).
+```
+
+(La primera línea recibida fue de `demo-mock`, que tenía un latido viejo de la prueba del servicio: comportamiento correcto. Después se limpió el estado de prueba.)

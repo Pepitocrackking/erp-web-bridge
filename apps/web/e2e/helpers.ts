@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { expect, type Page } from "@playwright/test";
 
 /** Usuarios del seed (contraseña común). */
@@ -28,4 +29,27 @@ export async function login(page: Page, email: string, password = PASSWORD) {
 export async function loginAndOpenCatalog(page: Page, email: string) {
   await login(page, email);
   await expect(page).toHaveURL(/\/catalogo$/);
+}
+
+/** Ejecuta SQL en la base de Supabase local (contenedor de `pnpm db:start`) y devuelve la salida sin formato. */
+export function psql(sql: string): string {
+  return execFileSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      "supabase_db_erp-web-bridge",
+      "psql",
+      "-U",
+      "postgres",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-t",
+      "-A",
+      "-q",
+      "-c",
+      sql,
+    ],
+    { encoding: "utf8" },
+  ).trim();
 }

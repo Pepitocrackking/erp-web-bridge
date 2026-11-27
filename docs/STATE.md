@@ -5,8 +5,8 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 ## Posición
 - **Fase actual:** 8, Endurecimiento y portafolio (la última)
 - **Rama:** `phase-8/portfolio` (creada desde `main` tras el merge del PR #8; aún sin push)
-- **Última tarea completada:** 8.1 (servicio de Windows, probado de verdad con elevación; evidencia en `docs/evidence/phase-8.md`).
-- **Estado de la fase:** en curso. Siguiente tarea: 8.2
+- **Última tarea completada:** 8.2 (alertas de agente sin conexión; antes, 8.1 servicio de Windows). Evidencia en `docs/evidence/phase-8.md`.
+- **Estado de la fase:** en curso. Siguiente tarea: 8.3
 
 **Decisiones de la tanda de dudas de la Fase 8 (2026-11-26, ya resueltas, no volver a preguntar):**
 - **8.4 Despliegue:** solo listo en local. Dockerfiles, compose de producción y guía paso a paso, probados en local. **No** se despliega nada sin destino y credenciales.
@@ -14,6 +14,7 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
 - **8.1 Elevación:** se intenta y se pide al usuario aceptar el UAC (hecho; el UAC se lanza con `Start-Process powershell -Verb RunAs` y la salida va a un archivo del scratchpad). Si hay que repetir una prueba elevada, el Gate puede volver a pedirlo.
 - **8.2 Alertas:** aviso en el panel (banner + contador en la cabecera) y un hook `notify` opcional (webhook) en la API; sin correo ni SMTP.
 - **8.1 hecho así:** `erp-agent service install|uninstall|start|stop|status` (`internal/winsvc`), `LocalService`, arranque automático retrasado, reinicio a 5/15/60 s también ante salidas con error, `agent.yaml` con ACL restringida, `log.file` con rotación (`internal/logfile`), Visor de eventos (origen `ErpAgent`), `agent.Options.Ready`. Prueba real: `scripts/test-windows-service.ps1` (admin; 23 comprobaciones, TODO OK). Los secretos van en `agent.yaml`, no por entorno del servicio.
+- **8.2 hecho así:** panel (`panelAlerts`/`alertSummary` en `lib/admin.ts`; banner `data-testid="panel-alert"`, contador `alert-counter`, título `(N) Panel…`; la cabecera del panel ahora vive en `dashboard.tsx`) y webhook opcional (`apps/api/src/agent/agent-alerts.service.ts`, `NOTIFY_*`, migración `..1000` con `organizations.agent_offline_notified_at`). Doc en `docs/agent-alerts.md`. Pruebas: web 87, API 205, RLS 48, Playwright **50** (`e2e/agent-alerts.spec.ts`, 3 nuevas; `e2e/helpers.ts` tiene ahora `psql()`).
 
 ## Fases cerradas
 - **Fase 0** (PR #1, fusionado el 2026-11-26): repo, `CLAUDE.md`, ROADMAP, STATE, 4 skills, plantilla de PR y `scripts/validate-workflow.sh`.
@@ -57,9 +58,9 @@ Memoria del proyecto entre sesiones. Lo actualiza la skill `guardar-estado` y lo
   - Backlog que quedó fuera: ejecutar el agente como servicio de Windows (Fase 8); validar los nombres de pedidos y facturas contra un Saint real; estados `approved`/`rejected` que vengan del ERP (el panel los muestra, nada los produce); `/pedidos` del comprador; validar stock; selector de organización.
 
 ## Siguiente acción
-Ejecutar la tarea **8.2** del bloque `## Fase 8` de `docs/ROADMAP.md` (alertas de agente sin conexión en el panel). Después 8.3 a 8.6 en orden y `phase-gate` con el Gate 8. La tanda de dudas de la fase ya se hizo (ver «Decisiones de la tanda» arriba): no preguntar más.
+Ejecutar la tarea **8.3** del bloque `## Fase 8` de `docs/ROADMAP.md` (README final con diagrama de arquitectura, capturas y guion de demo). Después 8.4 a 8.6 en orden y `phase-gate` con el Gate 8. La tanda de dudas de la fase ya se hizo (ver «Decisiones de la tanda» arriba): no preguntar más (ni confirmar compilaciones, E2E largas, UAC ni esperas: el usuario lo reclamó otra vez).
 
-**Esfuerzo sugerido:** medio para 8.2; bajo para 8.3; medio para 8.4 y 8.6; alto para 8.5 (seguridad).
+**Esfuerzo sugerido:** bajo para 8.3; medio para 8.4 y 8.6; alto para 8.5 (seguridad).
 
 **Lo que ya existe (no rehacer):**
 - **Agente** (`packages/erp-agent`, módulo Go, `CGO_ENABLED=0`): `cmd/erp-agent` (flags `-config`, `-once`, `-reconcile`), `internal/agent` (`Run(ctx, cfg, log, opts)` ya hace apagado limpio al cancelar el contexto; `NewLogger` escribe a **stderr**), `internal/config` (YAML estricto con `KnownFields`; secretos por `ERP_AGENT_API_KEY` y `ERP_AGENT_SAINT_DSN`). Desde 8.1 el agente también corre como servicio de Windows (`internal/winsvc`, `log.file` con rotación). El heartbeat ya informa `last_error` a la API (por ejemplo, el login inseguro).

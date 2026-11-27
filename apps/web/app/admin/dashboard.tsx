@@ -1,10 +1,14 @@
 "use client";
 
 import { formatBs, formatUsd, usdToBs } from "@erp-web-bridge/shared-types";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   PANEL_LIST_SIZE,
   agentStatus,
+  alertSummary,
+  panelAlerts,
+  type AlertLevel,
   customerAvailableUsd,
   fetchCustomers,
   fetchOrgStatus,
@@ -23,6 +27,7 @@ import {
   type SyncLogRow,
 } from "../../lib/admin";
 import { authorizeRealtime, createClient } from "../../lib/supabase/client";
+import { SignOutButton } from "../sign-out-button";
 import { RateForm } from "./rate-form";
 import { RetryOrderButton } from "./retry-order-button";
 
@@ -49,6 +54,21 @@ const ORDER_BADGE: Record<string, string> = {
   cancelled: "bg-slate-200 text-slate-700",
 };
 
+const ALERT_BOX: Record<AlertLevel, string> = {
+  error: "border-red-300 bg-red-50 text-red-900",
+  warning: "border-amber-300 bg-amber-50 text-amber-900",
+  info: "border-slate-300 bg-slate-50 text-slate-800",
+};
+
+const ALERT_COUNTER: Record<AlertLevel | "none", string> = {
+  error: "bg-red-600 text-white",
+  warning: "bg-amber-500 text-white",
+  info: "bg-slate-200 text-slate-700",
+  none: "bg-emerald-100 text-emerald-800",
+};
+
+const PANEL_TITLE = "Panel · ERP Web Bridge";
+
 /** Fecha y hora local del navegador. Se renderiza distinto en servidor y cliente: sin aviso de hidratación. */
 function When({ iso }: { iso: string | null }) {
   return (
@@ -70,11 +90,15 @@ function useNow(ms: number) {
 
 export function AdminDashboard({
   orgId,
+  orgName,
   canSetRate,
+  showSimulator,
   initial,
 }: {
   orgId: string;
+  orgName: string;
   canSetRate: boolean;
+  showSimulator: boolean;
   initial: DashboardData;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -154,13 +178,96 @@ export function AdminDashboard({
   }, [supabase, orgId, refreshOrg, refreshCustomers]);
 
   const agent = agentStatus(org.lastHeartbeatAt, now);
+  const alerts = panelAlerts({ agent, orders });
+  const summary = alertSummary(alerts);
   const customerName = useMemo(
     () => new Map(customers.rows.map((c) => [c.id, c.name])),
     [customers.rows],
   );
 
+  // El número de alertas también va en el título de la pestaña: se ve con el panel en segundo plano.
+  useEffect(() => {
+    document.title = summary.count > 0 ? `(${summary.count}) ${PANEL_TITLE}` : PANEL_TITLE;
+  }, [summary.count]);
+
   return (
     <div className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold">Panel de administración</h1>
+          <p className="text-sm text-slate-600">{orgName}</p>
+        </div>
+        <nav aria-label="Navegación del panel" className="flex items-center gap-4 text-sm">
+          <a
+            href="#alertas"
+            data-testid="alert-counter"
+            data-level={summary.level ?? "none"}
+            aria-label={
+              summary.count > 0 ? `${summary.label}: ver detalle` : "Sin alertas en el panel"
+            }
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${ALERT_COUNTER[summary.level ?? "none"]}`}
+          >
+            {summary.label}
+          </a>
+          {showSimulator && (
+            <Link href="/admin/simulador" className="underline">
+              Simulador de ERP
+            </Link>
+          )}
+          {canSetRate && (
+            <Link href="/admin/solicitudes" className="underline">
+              Solicitudes de acceso
+            </Link>
+          )}
+          <Link href="/catalogo" className="underline">
+            Catálogo
+          </Link>
+          <SignOutButton className="underline" />
+        </nav>
+      </header>
+
+      {alerts.length > 0 && (
+        <section id="alertas" aria-label="Alertas del panel" className="flex flex-col gap-3">
+          {alerts.map((alert) => (
+            <div
+              key={alert.id}
+              data-testid="panel-alert"
+              data-alert-id={alert.id}
+              data-level={alert.level}
+              role={alert.level === "error" ? "alert" : "status"}
+              className={`rounded-lg border p-4 ${ALERT_BOX[alert.level]}`}
+            >
+              <p className="font-semibold">{alert.title}</p>
+              <p className="mt-1 text-sm">{alert.detail}</p>
+              {alert.id === "agent-offline" && (
+                <details className="mt-3 text-sm">
+                  <summary className="cursor-pointer underline">Qué hacer</summary>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5">
+                    <li>Revisa que el equipo del ERP esté encendido y con internet.</li>
+                    <li>
+                      En ese equipo, en una consola de administrador, ejecuta{" "}
+                      <code className="rounded bg-white/70 px-1">erp-agent service status</code>. Si
+                      está detenido, arráncalo con{" "}
+                      <code className="rounded bg-white/70 px-1">erp-agent service start</code>.
+                    </li>
+                    <li>
+                      Si no arranca, el motivo está en <code>erp-agent.log</code> (junto a la base
+                      local del agente) y en el Visor de eventos de Windows.
+                    </li>
+                    <li>Mientras tanto, los pedidos quedan en cola y se enviarán al volver.</li>
+                  </ol>
+                </details>
+              )}
+              {alert.id === "orders-error" && (
+                <a href="#pedidos" className="mt-2 inline-block text-sm underline">
+                  Ver pedidos
+                </a>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+
       <section
         aria-label="Estado de sincronización"
         className="rounded-lg border border-slate-200 p-4"
@@ -228,7 +335,7 @@ export function AdminDashboard({
         </details>
       </section>
 
-      <section aria-label="Pedidos">
+      <section id="pedidos" aria-label="Pedidos">
         <h2 className="mb-3 text-lg font-semibold">Pedidos</h2>
         {orders.length === 0 ? (
           <p className="text-slate-600">Aún no hay pedidos.</p>

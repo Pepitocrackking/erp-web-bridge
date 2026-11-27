@@ -9,6 +9,18 @@ export interface RateLimitConfig {
   strict: number;
 }
 
+/** Aviso externo (webhook) cuando el agente local de una organización deja de dar señales. */
+export interface NotifyConfig {
+  /** NOTIFY_WEBHOOK_URL. Vacío = apagado (el panel avisa igual). https, o http hacia localhost. */
+  webhookUrl: string | null;
+  /** NOTIFY_WEBHOOK_SECRET. Si existe, el cuerpo se firma con HMAC-SHA256 en `x-erp-bridge-signature`. */
+  webhookSecret: string | null;
+  /** NOTIFY_OFFLINE_AFTER_SECONDS: sin latido durante este tiempo = sin conexión (igual que el panel). */
+  offlineAfterSeconds: number;
+  /** NOTIFY_CHECK_INTERVAL_SECONDS: cada cuánto revisa la API las organizaciones. */
+  checkIntervalSeconds: number;
+}
+
 export interface AppConfig {
   databaseUrl: string;
   /** Secreto HS256 con el que Supabase Auth firma los JWT (SUPABASE_JWT_SECRET). */
@@ -28,6 +40,7 @@ export interface AppConfig {
   trustProxy: boolean | number;
   /** Publica /docs y /openapi.json (DOCS_ENABLED, por defecto sí). */
   docsEnabled: boolean;
+  notify: NotifyConfig;
 }
 
 /** Entero positivo de una variable de entorno; cualquier otra cosa cae al valor por defecto. */
@@ -45,6 +58,24 @@ function parseTrustProxy(raw: string | undefined): boolean | number {
   return false;
 }
 
+/**
+ * URL del webhook. Una URL mal escrita detiene el arranque: ignorarla en silencio dejaría al
+ * operador creyendo que está protegido por un aviso que nunca se envía.
+ */
+function parseWebhookUrl(raw: string | undefined): string | null {
+  const value = raw?.trim();
+  if (!value) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`NOTIFY_WEBHOOK_URL no es una URL válida: ${JSON.stringify(value)}`);
+  }
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.protocol === "https:" || (url.protocol === "http:" && loopback)) return value;
+  throw new Error("NOTIFY_WEBHOOK_URL debe ser https (http solo se admite hacia localhost)");
+}
+
 /** Valores por defecto: la base y el secreto de la pila local de `supabase start`. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
@@ -60,6 +91,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     docsEnabled: env.DOCS_ENABLED?.trim().toLowerCase() !== "false",
+    notify: {
+      webhookUrl: parseWebhookUrl(env.NOTIFY_WEBHOOK_URL),
+      webhookSecret: env.NOTIFY_WEBHOOK_SECRET?.trim() || null,
+      offlineAfterSeconds: positiveInt(env.NOTIFY_OFFLINE_AFTER_SECONDS, 180),
+      checkIntervalSeconds: positiveInt(env.NOTIFY_CHECK_INTERVAL_SECONDS, 60),
+    },
   };
 }
 

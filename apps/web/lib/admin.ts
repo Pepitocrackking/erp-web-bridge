@@ -21,6 +21,77 @@ export function agentStatus(lastHeartbeatAt: string | null, nowMs: number): Agen
   return { level: "offline", text: `Sin conexión desde hace ${Math.floor(hours / 24)} d` };
 }
 
+export type AlertLevel = "error" | "warning" | "info";
+
+export interface PanelAlert {
+  id: "agent-offline" | "agent-never" | "orders-error";
+  level: AlertLevel;
+  title: string;
+  detail: string;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Lo que el personal debe ver al abrir el panel, de lo más grave a lo menos. Sale del mismo estado
+ * que el resto del panel (latido del agente y pedidos), así que se actualiza en vivo.
+ */
+export function panelAlerts(input: {
+  agent: AgentStatus;
+  orders: readonly { status: string }[];
+}): PanelAlert[] {
+  const alerts: PanelAlert[] = [];
+  const waiting = input.orders.filter((o) => o.status === "pending_sync").length;
+  const failed = input.orders.filter((o) => o.status === "error").length;
+
+  if (input.agent.level === "offline") {
+    const waitingText =
+      waiting > 0
+        ? ` ${waiting === 1 ? "1 pedido espera al agente" : `${waiting} pedidos esperan al agente`} para llegar al ERP.`
+        : "";
+    alerts.push({
+      id: "agent-offline",
+      level: "error",
+      title: "El agente local no responde",
+      detail: `${input.agent.text}. El catálogo muestra el último estado válido: precios y existencias pueden estar desactualizados.${waitingText}`,
+    });
+  } else if (input.agent.level === "never") {
+    alerts.push({
+      id: "agent-never",
+      level: "info",
+      title: "Aún no hay un agente conectado",
+      detail:
+        "Instala el agente en el equipo del ERP (erp-agent service install) con la clave de esta organización para empezar a sincronizar.",
+    });
+  }
+  if (failed > 0) {
+    alerts.push({
+      id: "orders-error",
+      level: "warning",
+      title: `${plural(failed, "pedido", "pedidos")} con error`,
+      detail: "El ERP no los aceptó. Revisa el motivo en la lista de pedidos y usa «Reintentar».",
+    });
+  }
+  return alerts;
+}
+
+/** Resumen para la cabecera: cuántas alertas piden atención (la informativa no cuenta) y su gravedad. */
+export function alertSummary(alerts: readonly PanelAlert[]): {
+  count: number;
+  level: AlertLevel | null;
+  label: string;
+} {
+  const count = alerts.filter((a) => a.level !== "info").length;
+  const level = alerts.some((a) => a.level === "error")
+    ? "error"
+    : alerts.some((a) => a.level === "warning")
+      ? "warning"
+      : alerts.length > 0
+        ? "info"
+        : null;
+  return { count, level, label: count === 0 ? "Sin alertas" : plural(count, "alerta", "alertas") };
+}
+
 /** Pone `row` al principio (lo más nuevo primero) o la reemplaza en su sitio si ya estaba; recorta a `max`. */
 export function mergeById<T extends { id: string }>(list: T[], row: T, max: number): T[] {
   const index = list.findIndex((item) => item.id === row.id);
