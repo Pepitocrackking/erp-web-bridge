@@ -16,7 +16,17 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: [["list"]],
-  use: { baseURL: `http://localhost:${WEB_PORT}`, trace: "retain-on-failure", locale: "es-VE" },
+  use: {
+    baseURL: `http://localhost:${WEB_PORT}`,
+    trace: "retain-on-failure",
+    locale: "es-VE",
+    // Solo para probar las imágenes de Docker (docs/deploy.md): la web del contenedor apunta a Supabase por
+    // `host.docker.internal`, que el navegador del anfitrión no resuelve. Ej.:
+    //   E2E_HOST_RESOLVER_RULES="MAP host.docker.internal 127.0.0.1"
+    launchOptions: process.env.E2E_HOST_RESOLVER_RULES
+      ? { args: [`--host-resolver-rules=${process.env.E2E_HOST_RESOLVER_RULES}`] }
+      : {},
+  },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {

@@ -1046,3 +1046,84 @@ describe("service_role (control: es lo que usa la API de ingesta)", () => {
       assert.deepEqual(ids(r), [ORG_A, ORG_B]);
     }));
 });
+
+// ---------------------------------------------------------------------------
+// Auditoría estructural (tarea 8.5): guardas para que una migración futura no deje un hueco sin que
+// ninguna prueba lo note. Miran el catálogo de Postgres, no datos.
+// ---------------------------------------------------------------------------
+describe("auditoría estructural de seguridad", () => {
+  const SCHEMAS = ["public", "private"];
+
+  it("toda tabla de public y private tiene RLS activado", async () => {
+    const { rows } = await pool.query(
+      `SELECT schemaname || '.' || tablename AS t FROM pg_tables
+        WHERE schemaname = ANY($1) AND NOT rowsecurity ORDER BY 1`,
+      [SCHEMAS],
+    );
+    assert.deepEqual(rows, [], `tablas sin RLS: ${rows.map((r) => r.t).join(", ")}`);
+  });
+
+  it("toda función SECURITY DEFINER fija su search_path (si no, se puede secuestrar con un esquema propio)", async () => {
+    const { rows } = await pool.query(
+      `SELECT n.nspname || '.' || p.proname AS f
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = ANY($1) AND p.prosecdef
+          AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, '{}')) c WHERE c LIKE 'search_path=%')
+        ORDER BY 1`,
+      [SCHEMAS],
+    );
+    assert.deepEqual(rows, [], `SECURITY DEFINER sin search_path: ${rows.map((r) => r.f).join(", ")}`);
+  });
+
+  it("anon no tiene ningún privilegio sobre tablas, columnas ni funciones", async () => {
+    const tables = await pool.query(
+      `SELECT table_schema || '.' || table_name AS o, privilege_type AS p
+         FROM information_schema.role_table_grants WHERE grantee = 'anon' AND table_schema = ANY($1)`,
+      [SCHEMAS],
+    );
+    const columns = await pool.query(
+      `SELECT table_schema || '.' || table_name || '.' || column_name AS o, privilege_type AS p
+         FROM information_schema.column_privileges WHERE grantee = 'anon' AND table_schema = ANY($1)`,
+      [SCHEMAS],
+    );
+    const functions = await pool.query(
+      `SELECT n.nspname || '.' || p.proname AS o, 'EXECUTE' AS p
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = ANY($1) AND p.prokind = 'f' AND has_function_privilege('anon', p.oid, 'EXECUTE')`,
+      [SCHEMAS],
+    );
+    const all = [...tables.rows, ...columns.rows, ...functions.rows];
+    assert.deepEqual(all, [], `anon puede: ${all.map((r) => `${r.p} ${r.o}`).join(", ")}`);
+  });
+
+  it("authenticated no puede leer ni escribir las columnas secretas de organizations", async () => {
+    const { rows } = await pool.query(
+      `SELECT column_name AS c, privilege_type AS p FROM information_schema.column_privileges
+        WHERE grantee = 'authenticated' AND table_schema = 'public' AND table_name = 'organizations'
+          AND column_name IN ('api_key_hash', 'agent_offline_notified_at')`,
+    );
+    assert.deepEqual(rows, [], "la clave del agente (hash) y el estado interno del aviso no se exponen");
+
+    const c = await pool.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SET LOCAL ROLE authenticated");
+      await assert.rejects(
+        c.query("SELECT api_key_hash FROM public.organizations"),
+        /permission denied/i,
+      );
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
+  });
+
+  it("las vistas de public respetan las políticas de quien consulta (security_invoker)", async () => {
+    const { rows } = await pool.query(
+      `SELECT c.relname AS v FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'v'
+          AND NOT coalesce('security_invoker=true' = ANY (c.reloptions), false)`,
+    );
+    assert.deepEqual(rows, [], `vistas sin security_invoker: ${rows.map((r) => r.v).join(", ")}`);
+  });
+});

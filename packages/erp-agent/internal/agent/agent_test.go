@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -28,14 +29,15 @@ type cloud struct {
 	orderGets  int
 	confirmed  map[string]string // id del pedido -> referencia con la que se confirmó
 	failed     map[string]string // id del pedido -> motivo informado
+	key        string            // x-api-key que acepta (por defecto "k")
 }
 
 func newCloud(t *testing.T) *cloud {
-	c := &cloud{}
+	c := &cloud{key: "k"}
 	c.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		if r.Header.Get("x-api-key") != "k" {
+		if r.Header.Get("x-api-key") != c.key {
 			w.WriteHeader(401)
 			return
 		}
@@ -345,5 +347,131 @@ func TestConUnLoginInseguroNoSeConsultanNiSeEscribenPedidos(t *testing.T) {
 	}
 	if w.veces != veces {
 		t.Fatalf("verificó el login %d veces más: una vez aprobado no hay que repetirlo", w.veces-veces)
+	}
+}
+
+func TestOpenLogEscribeAArchivoYAConsola(t *testing.T) {
+	dir := t.TempDir()
+	var console bytes.Buffer
+	c := config.Log{Level: "info", Format: "json", File: filepath.Join(dir, "logs", "agent.log"), MaxSizeMB: 1, MaxBackups: 1}
+	w, closer, err := OpenLog(c, &console)
+	if err != nil {
+		t.Fatal(err)
+	}
+	NewLogger(w, c).Info("hola desde la prueba")
+	closer.Close()
+	b, err := os.ReadFile(c.File)
+	if err != nil || !strings.Contains(string(b), "hola desde la prueba") {
+		t.Fatalf("archivo = %q, err = %v", b, err)
+	}
+	if !strings.Contains(console.String(), "hola desde la prueba") {
+		t.Fatalf("consola = %q", console.String())
+	}
+}
+
+func TestOpenLogSinArchivoUsaSoloLaConsola(t *testing.T) {
+	var console bytes.Buffer
+	w, closer, err := OpenLog(config.Log{}, &console)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closer.Close()
+	w.Write([]byte("x"))
+	if console.String() != "x" {
+		t.Fatalf("consola = %q", console.String())
+	}
+}
+
+func TestOpenLogSinConsolaNiArchivoDescarta(t *testing.T) {
+	w, closer, err := OpenLog(config.Log{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closer.Close()
+	if n, err := w.Write([]byte("abc")); err != nil || n != 3 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+}
+
+func TestOpenLogFallaSiNoPuedeAbrirElArchivo(t *testing.T) {
+	if _, _, err := OpenLog(config.Log{File: t.TempDir(), MaxSizeMB: 1}, nil); err == nil {
+		t.Fatal("esperaba error")
+	}
+}
+
+func TestReadyAvisaCuandoElAgenteYaEstaArmado(t *testing.T) {
+	c := newCloud(t)
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	calls := 0
+	err := Run(context.Background(), cfg, NewLogger(discard(), cfg.Log), Options{Once: true, Ready: func() { calls++ }})
+	if err != nil || calls != 1 {
+		t.Fatalf("err = %v, Ready llamado %d veces, quería 1", err, calls)
+	}
+}
+
+func TestReadyNoSeLlamaSiElAgenteNoPuedeArmarse(t *testing.T) {
+	c := newCloud(t)
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	cfg.ERP.Type = "inexistente"
+	calls := 0
+	err := Run(context.Background(), cfg, NewLogger(discard(), cfg.Log), Options{Once: true, Ready: func() { calls++ }})
+	if err == nil || calls != 0 {
+		t.Fatalf("err = %v, Ready llamado %d veces, quería error y 0 llamadas", err, calls)
+	}
+}
+
+// Seguridad (8.5): ni la clave de la API ni la contraseña de la DSN deben aparecer en los logs ni en
+// los errores, que además viajan al heartbeat hacia la nube. Se prueba con valores reconocibles y el
+// nivel de log más verboso, con una conexión que falla (los errores del driver son los que podrían
+// arrastrar la DSN).
+func TestLosSecretosNuncaAparecenEnLogsNiErrores(t *testing.T) {
+	const apiKey = "API-KEY-SECRETA-9f3a1c" // gitleaks:allow valor falso a propósito: la prueba comprueba que NO se filtra
+	const password = "S3cr3tPASSw0rd-7b2e"  // gitleaks:allow valor falso a propósito: la prueba comprueba que NO se filtra
+	dsns := map[string]string{
+		"conexión rechazada": "sqlserver://sa:" + password + "@127.0.0.1:1?database=X&encrypt=disable&dial+timeout=1",
+		"DSN mal formada":    "sqlserver://sa:" + password + "@[::1",
+	}
+	for name, dsn := range dsns {
+		t.Run(name, func(t *testing.T) {
+			c := newCloud(t)
+			cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+			cfg.API.APIKey = apiKey
+			cfg.Log.Level = "debug"
+			cfg.ERP.Type = "saint"
+			cfg.ERP.Saint = config.Saint{DSN: dsn, MappingFile: "../../../../infra/saint-sandbox/mapping.saint.yaml"}
+
+			var logs bytes.Buffer
+			log := NewLogger(&logs, cfg.Log)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			err := Run(ctx, cfg, log, Options{Once: true})
+
+			all := logs.String()
+			if err != nil {
+				all += "\n" + err.Error()
+			}
+			if strings.Contains(all, password) || strings.Contains(all, apiKey) {
+				t.Fatalf("se filtró un secreto en logs/errores:\n%s", all)
+			}
+		})
+	}
+}
+
+func TestLaClaveDeLaAPINuncaAparecePorLogsConElERPSimulado(t *testing.T) {
+	const apiKey = "API-KEY-SECRETA-9f3a1c" // gitleaks:allow valor falso a propósito: la prueba comprueba que NO se filtra
+	c := newCloud(t)
+	c.key = apiKey // la nube simulada acepta esta clave: así se recorre el camino de éxito completo
+	cfg := cfgFor(t, c, filepath.Join(t.TempDir(), "agent.db"))
+	cfg.API.APIKey = apiKey
+	cfg.Log.Level = "debug"
+	var logs bytes.Buffer
+	if err := Run(context.Background(), cfg, NewLogger(&logs, cfg.Log), Options{Once: true}); err != nil {
+		t.Fatal(err)
+	}
+	if logs.Len() == 0 {
+		t.Fatal("la prueba no es válida: no se registró nada")
+	}
+	if strings.Contains(logs.String(), apiKey) {
+		t.Fatalf("la clave de la API apareció en el log:\n%s", logs.String())
 	}
 }

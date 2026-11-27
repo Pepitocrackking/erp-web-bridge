@@ -156,17 +156,17 @@ Rama: `phase-7/orders-to-erp`
 ## Fase 8: Endurecimiento y portafolio
 Rama: `phase-8/portfolio`
 
-- [ ] **8.1** Instalador del agente como servicio de Windows.
-- [ ] **8.2** Alertas de "agente sin conexión" en el panel.
-- [ ] **8.3** README final con diagrama de arquitectura, capturas y guion de demo.
-- [ ] **8.4** Despliegue de web y API, con Supabase en la nube.
-- [ ] **8.5** Revisión de seguridad (claves, RLS, dependencias) y `LICENSE`.
-- [ ] **8.6** Comando único `demo` que levanta todo desde un clon limpio.
+- [x] **8.1** Instalador del agente como servicio de Windows.
+- [x] **8.2** Alertas de "agente sin conexión" en el panel.
+- [x] **8.3** README final con diagrama de arquitectura, capturas y guion de demo.
+- [x] **8.4** Despliegue de web y API, con Supabase en la nube.
+- [x] **8.5** Revisión de seguridad (claves, RLS, dependencias) y `LICENSE`.
+- [x] **8.6** Comando único `demo` que levanta todo desde un clon limpio.
 
 ### Gate 8
-- [ ] Desde un clon limpio, el comando `demo` levanta el sistema y el flujo completo funciona.
-- [ ] El servicio de Windows se instala, arranca y se desinstala (probado).
-- [ ] No hay secretos en el historial (escaneo).
+- [x] Desde un clon limpio, el comando `demo` levanta el sistema y el flujo completo funciona.
+- [x] El servicio de Windows se instala, arranca y se desinstala (probado).
+- [x] No hay secretos en el historial (escaneo).
 
 ---
 

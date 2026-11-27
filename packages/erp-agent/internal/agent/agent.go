@@ -21,6 +21,7 @@ import (
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/erp"
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/erp/mock"
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/erp/saint"
+	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/logfile"
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/orders"
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/sender"
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/store"
@@ -28,7 +29,28 @@ import (
 	"github.com/Pepitocrackking/erp-web-bridge/packages/erp-agent/internal/version"
 )
 
-// NewLogger crea el logger estructurado (stderr, JSON por defecto).
+// OpenLog decide a dónde van los logs: al archivo de la configuración (con
+// rotación por tamaño) y a la consola si la hay (console puede ser nil, como en
+// un servicio de Windows, que no tiene stderr). Sin archivo, solo a la consola;
+// sin ninguno de los dos, se descartan. El io.Closer cierra el archivo.
+func OpenLog(c config.Log, console io.Writer) (io.Writer, io.Closer, error) {
+	if c.File == "" {
+		if console == nil {
+			console = io.Discard
+		}
+		return console, io.NopCloser(nil), nil
+	}
+	f, err := logfile.Open(c.File, int64(c.MaxSizeMB)*1024*1024, c.MaxBackups)
+	if err != nil {
+		return nil, nil, err
+	}
+	if console == nil {
+		return f, f, nil
+	}
+	return io.MultiWriter(f, console), f, nil
+}
+
+// NewLogger crea el logger estructurado (JSON por defecto).
 func NewLogger(w io.Writer, c config.Log) *slog.Logger {
 	var lvl slog.Level
 	if err := lvl.UnmarshalText([]byte(strings.ToLower(c.Level))); err != nil {
@@ -70,6 +92,10 @@ func NewERP(cfg *config.Config, log *slog.Logger) (erp.Adapter, func() error, er
 type Options struct {
 	Once      bool // un ciclo, vaciar la cola y salir (útil para pruebas y tareas programadas)
 	Reconcile bool // forzar una reconciliación completa en el primer ciclo
+	// Ready, si no es nil, se llama una vez cuando el agente ya está armado
+	// (ERP, base local y cliente listos) y antes del primer ciclo. El servicio
+	// de Windows lo usa para declararse "en marcha" solo si de verdad arrancó.
+	Ready func()
 }
 
 // App es el agente armado.
@@ -132,6 +158,9 @@ func Run(ctx context.Context, cfg *config.Config, log *slog.Logger, opts Options
 	log.Info("agente iniciado", "erp", a.erp.Type(), "api", cfg.API.URL,
 		"sync_interval", cfg.Sync.Interval.String(), "reconcile_interval", cfg.Sync.ReconcileInterval.String(),
 		"store", cfg.Store.Path)
+	if opts.Ready != nil {
+		opts.Ready()
+	}
 	if opts.Once {
 		return a.once(ctx, opts.Reconcile)
 	}

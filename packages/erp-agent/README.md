@@ -29,7 +29,31 @@ go run ./cmd/erp-agent -version
 
 Compilar el `.exe`: `CGO_ENABLED=0 go build -o erp-agent.exe ./cmd/erp-agent`.
 
-Los logs salen por stderr, en JSON por defecto (`log.format: text` para leerlos a ojo). El heartbeat informa a la API la versión, la profundidad de la cola y el último error.
+Los logs salen por stderr, en JSON por defecto (`log.format: text` para leerlos a ojo). Con `log.file` van además a un archivo que rota por tamaño (`log.max_size_mb`, `log.max_backups`). El heartbeat informa a la API la versión, la profundidad de la cola y el último error.
+
+## Como servicio de Windows
+
+El mismo `erp-agent.exe` se instala como servicio: arranca con Windows (arranque automático retrasado), se reinicia solo si falla y no necesita una sesión abierta.
+
+```
+erp-agent service install -config C:\ProgramData\ErpAgent\agent.yaml   # consola de administrador
+erp-agent service start
+erp-agent service status
+erp-agent service stop
+erp-agent service uninstall      # no borra la configuración, la base ni los logs
+```
+
+Diseño y garantías (probadas con `scripts/test-windows-service.ps1`):
+
+- **Cuenta sin privilegios:** corre como `LocalService` (o `NetworkService`, o una cuenta dedicada con `-account DOMINIO\usuario -password-env VAR`). `LocalSystem` se rechaza a propósito.
+- **Secretos fuera de la línea de comandos:** el servicio se lanza solo con `-config <ruta> -service-name <nombre>`. La `api_key` y la DSN viven en `agent.yaml`; al instalar, el archivo queda con permisos restringidos (SYSTEM y administradores: control total; la cuenta del servicio: lectura; nadie más).
+- **Recuperación:** si el proceso muere o termina con error, el Service Control Manager lo reinicia a los 5 s, luego a los 15 s y luego cada 60 s; el contador se reinicia tras un día sin caídas. Una parada normal (`stop`, apagado de Windows) cancela el ciclo, espera a que termine lo que está enviando (hasta 30 s) y sale limpio.
+- **Arranque honesto:** el servicio solo se declara «en marcha» cuando el agente ya está armado (configuración válida, ERP y base local abiertos). Una configuración mala hace fallar `service start` con el motivo, no deja un servicio «corriendo» que no hace nada.
+- **Logs:** sin stderr, escribe en `log.file`; si falta, en `erp-agent.log` junto a la base local. Los hitos y fallos van además al Visor de eventos de Windows (origen `ErpAgent`).
+- **Carpetas:** al instalar se crean la carpeta de la base local y la del log (si es otra) y la cuenta recibe permiso de modificación solo sobre ellas. Recomendado: `C:\ProgramData\ErpAgent\agent.yaml` con `store.path: data/agent.db`.
+- **Conexión al ERP:** usa el login restringido `erp_agent` de siempre; el servicio no cambia nada de la seguridad contable.
+
+`service install` valida el `agent.yaml` **antes** de tocar el sistema y lista todos los problemas juntos. Con `-name` se pueden instalar varios agentes (por ejemplo, uno por empresa) en la misma máquina. En Linux y macOS el subcomando existe pero responde que solo funciona en Windows.
 
 ## Desarrollo
 

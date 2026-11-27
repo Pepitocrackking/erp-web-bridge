@@ -160,3 +160,35 @@ func TestPedidosVienenActivadosPorDefectoYSeValidan(t *testing.T) {
 		}
 	}
 }
+
+func TestLogAArchivoConRotacionPorDefecto(t *testing.T) {
+	c, err := Parse([]byte(minimo), noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Log.File != "" || c.Log.MaxSizeMB != 10 || c.Log.MaxBackups != 5 {
+		t.Fatalf("log = %+v, quiero file vacío, 10 MB y 5 copias", c.Log)
+	}
+	c, err = Parse([]byte(minimo+"log: {file: logs/agent.log, max_size_mb: 2, max_backups: 0}\n"), noEnv)
+	if err != nil || c.Log.File != "logs/agent.log" || c.Log.MaxSizeMB != 2 || c.Log.MaxBackups != 0 {
+		t.Fatalf("err = %v, log = %+v", err, c.Log)
+	}
+	for _, bad := range []string{"max_size_mb: 0", "max_size_mb: -1", "max_backups: -1", "max_backups: 101"} {
+		if _, err := Parse([]byte(minimo+"log: {"+bad+"}\n"), noEnv); err == nil || !strings.Contains(err.Error(), "log.max_") {
+			t.Fatalf("%s: err = %v", bad, err)
+		}
+	}
+}
+
+func TestLoadResuelveLaRutaDelLog(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent.yaml")
+	os.WriteFile(path, []byte(minimo+"log: {file: logs/agent.log}\n"), 0o600)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Log.File != filepath.Join(dir, "logs", "agent.log") {
+		t.Fatalf("log.file = %q", c.Log.File)
+	}
+}

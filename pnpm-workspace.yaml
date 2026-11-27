@@ -4,3 +4,8 @@ packages:
 allowBuilds:
   "@parcel/watcher": false
   "@scarf/scarf": false
+# Auditoría de seguridad (tarea 8.5): dependencias de desarrollo (cadena de jest -> babel-plugin-istanbul
+# -> test-exclude) con avisos moderados corregidos en estas versiones. No llegan a las imágenes de producción.
+overrides:
+  "glob@>=9.0.0 <14.0.2": "^14.0.2"
+  "minimatch@>=7.0.0 <11.0.1": "^11.0.1"

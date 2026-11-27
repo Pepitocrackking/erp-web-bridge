@@ -1,5 +1,7 @@
 import {
   AGENT_ONLINE_WINDOW_MS,
+  alertSummary,
+  panelAlerts,
   agentStatus,
   canRetryOrder,
   customerAvailableUsd,
@@ -177,5 +179,82 @@ describe("resultado de reintentar un pedido", () => {
     expect(retryOutcome(429, null).error).toMatch(/Espera/);
     expect(retryOutcome(500, null).error).toMatch(/No se pudo reintentar/);
     expect(retryOutcome(500, null).info).toBeUndefined();
+  });
+});
+
+describe("panelAlerts", () => {
+  const offline = { level: "offline", text: "Sin conexión desde hace 10 min" } as const;
+  const online = { level: "online", text: "Conectado" } as const;
+  const never = { level: "never", text: "Nunca se ha conectado" } as const;
+  const orders = (...statuses: string[]) => statuses.map((status) => ({ status }));
+
+  it("sin problemas no hay alertas", () => {
+    expect(panelAlerts({ agent: online, orders: orders("synced_to_erp", "approved") })).toEqual([]);
+  });
+
+  it("agente sin conexión: error, dice hace cuánto y que el catálogo puede estar desactualizado", () => {
+    const [a, ...rest] = panelAlerts({ agent: offline, orders: [] });
+    expect(rest).toEqual([]);
+    expect(a).toMatchObject({ id: "agent-offline", level: "error" });
+    expect(a.detail).toContain("Sin conexión desde hace 10 min");
+    expect(a.detail).toMatch(/desactualizad/);
+  });
+
+  it("agente sin conexión con pedidos esperando: lo menciona, en singular y plural", () => {
+    const one = panelAlerts({ agent: offline, orders: orders("pending_sync") })[0];
+    expect(one.detail).toContain("1 pedido espera al agente");
+    const many = panelAlerts({ agent: offline, orders: orders("pending_sync", "pending_sync") })[0];
+    expect(many.detail).toContain("2 pedidos esperan al agente");
+  });
+
+  it("con el agente conectado, los pedidos pendientes no son una alerta", () => {
+    expect(panelAlerts({ agent: online, orders: orders("pending_sync") })).toEqual([]);
+  });
+
+  it("agente que nunca se conectó: aviso informativo, no error", () => {
+    const [a] = panelAlerts({ agent: never, orders: [] });
+    expect(a).toMatchObject({ id: "agent-never", level: "info" });
+    expect(a.detail).toMatch(/erp-agent/);
+  });
+
+  it("pedidos en error: advertencia con la cuenta, en singular y plural", () => {
+    expect(panelAlerts({ agent: online, orders: orders("error") })[0]).toMatchObject({
+      id: "orders-error",
+      level: "warning",
+      title: "1 pedido con error",
+    });
+    expect(
+      panelAlerts({ agent: online, orders: orders("error", "error", "approved") })[0].title,
+    ).toBe("2 pedidos con error");
+  });
+
+  it("lo más grave va primero y todas cuentan", () => {
+    const list = panelAlerts({ agent: offline, orders: orders("error") });
+    expect(list.map((a) => a.id)).toEqual(["agent-offline", "orders-error"]);
+  });
+});
+
+describe("alertSummary", () => {
+  it("sin alertas no hay contador", () => {
+    expect(alertSummary([])).toEqual({ count: 0, level: null, label: "Sin alertas" });
+  });
+
+  it("cuenta las alertas que piden atención y toma el nivel más grave", () => {
+    const list = [
+      { id: "orders-error", level: "warning", title: "t", detail: "d" },
+      { id: "agent-offline", level: "error", title: "t", detail: "d" },
+    ] as const;
+    expect(alertSummary([...list])).toEqual({ count: 2, level: "error", label: "2 alertas" });
+  });
+
+  it("una sola alerta va en singular, y la informativa no se cuenta", () => {
+    expect(
+      alertSummary([{ id: "agent-offline", level: "error", title: "t", detail: "d" }]).label,
+    ).toBe("1 alerta");
+    expect(alertSummary([{ id: "agent-never", level: "info", title: "t", detail: "d" }])).toEqual({
+      count: 0,
+      level: "info",
+      label: "Sin alertas",
+    });
   });
 });
